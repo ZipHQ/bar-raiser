@@ -27,3 +27,7 @@ lint = [
     "pyright>=1.1.389",
     "pre-commit>=4.0.1",
 ]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
