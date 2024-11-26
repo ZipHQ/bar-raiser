@@ -1,0 +1,19 @@
+[project]
+name = "bar-raiser"
+version = "0.1.0"
+description = "Bar-Raiser is a cutting-edge framework designed to help engineering teams tackle technical debt, streamline development workflows, and elevate code quality."
+authors = [
+    {name = "Jimmy Lai", email = "jimmy.lai@ziphq.com"},
+]
+dependencies = []
+requires-python = ">=3.11"
+readme = "README.md"
+license = {text = "BSD-3-Clause"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
