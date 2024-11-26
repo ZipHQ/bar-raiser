@@ -14,3 +14,10 @@ repos:
     hooks:
       - id: pdm-lock-check
       - id: pdm-sync
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: "v0.8.0"
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix, --show-fixes]
+      - id: ruff-format
