@@ -31,7 +31,7 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: ./.venv/bin/pytest tests
+        entry: ./.venv/bin/pytest --cov=src --cov-fail-under=80 tests
         language: system
         pass_filenames: false
         always_run: true

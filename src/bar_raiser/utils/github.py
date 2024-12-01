@@ -93,12 +93,12 @@ def create_check_run(
             name=name,
             head_sha=head_sha,
             conclusion=conclusion,
-            output={  # pyright: ignore[reportGeneralTypeIssues]
+            output={  # pyright: ignore[reportArgumentType]
                 "title": title,
                 "summary": summary,
                 "annotations": batch,
             },
-            actions=actions,  # pyright: ignore[reportGeneralTypeIssues]
+            actions=actions,  # pyright: ignore[reportArgumentType]
         )
         logger.info(check.html_url)
         checks.append(check)
