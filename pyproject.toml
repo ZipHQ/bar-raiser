@@ -4,7 +4,11 @@ description = "Bar-Raiser is a cutting-edge framework designed to help engineeri
 authors = [
     {name = "Jimmy Lai", email = "jimmy.lai@ziphq.com"},
 ]
-dependencies = ["pygithub>=2.2.0", "gitpython>=3.1.41"]
+dependencies = [
+    "pygithub>=2.2.0",
+    "gitpython>=3.1.41",
+    "cryptography>=42.0.4"
+]
 requires-python = ">=3.11"
 readme = "README.md"
 license = {text = "BSD-3-Clause"}
