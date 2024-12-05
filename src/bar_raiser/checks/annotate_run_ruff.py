@@ -4,7 +4,7 @@ from logging import getLogger
 from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 from sys import exit
-from typing import Callable
+from typing import TYPE_CHECKING
 
 from bar_raiser.utils.check import CheckPattern, get_annotations_and_actions
 from bar_raiser.utils.github import (
@@ -15,6 +15,9 @@ from bar_raiser.utils.github import (
     get_github_repo,
     initialize_logging,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = getLogger(__name__)
 

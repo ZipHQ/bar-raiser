@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from os import environ
-from typing import cast
 from unittest.mock import MagicMock, mock_open, patch
 
 from git import Diff
@@ -128,7 +127,7 @@ def test_run_codemod_and_commit_changes() -> None:
         )
         mock_check_output.assert_called_with(["black"])
         mock_commit_changes.assert_not_called()
-        mock_pull = cast(MagicMock, mock_repo.get_pull.return_value)  # pyright: ignore[reportUnknownMemberType]
+        mock_pull = mock_repo.get_pull.return_value  # pyright: ignore[reportUnknownMemberType]
         mock_pull.create_issue_comment.assert_called_once_with(  # pyright: ignore[reportUnknownMemberType]
             "No updated paths to commit."
         )

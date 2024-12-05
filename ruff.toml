@@ -1,0 +1,63 @@
+lint.select = [
+  "FURB", # refurb
+  "TCH", # flake8-type-checking
+  "ANN204", # missing-return-type-special-method
+  "ASYNC", # flake8-async
+  "B", # flake8-bugbear
+  "C4", # flake8-comprehensions
+  "E", # pycodestyle
+  "F", # pyflakes
+  "FA", # flake8-future-annotations
+  "FLY", # flynt
+  "I", # isort
+  "INP", # flake8-no-pep420
+  "LOG", # flake8-logging
+  "G010", # logging-warn
+  "N804", # invalid-first-argument-name-for-class-method
+  "NPY", # Numpy
+  "PERF", # Perflint
+  "PGH", # pygrep-hooks
+  "PIE", # flake8-pie
+  "PLC0131", # type-bivariance
+  "PLC0132", # type-param-name-mismatch
+  "PLC0205", # single-string-slots
+  "PLC0208", # iteration-over-set
+  "PLC0414", # useless-import-alias
+  "PLC2801", # unnecessary-dunder-call
+  "PLE", # Pylint errors
+  "PLR", # Refactor
+  "PLW", # Warning
+  "PTH201", # path-constructor-current-directory
+  "PYI009", # pass-statement-stub-body
+  "PYI016", # duplicate-union-member
+  "PT", # flake8-pytest-style
+  "Q", # flake8-quotes
+  "RET", # flake8-return
+  "RUF", # Ruff-specific rules
+  "SLF001", # private-member-access
+  "TID", # flake8-tidy-imports
+  "TID251", # banned-api
+  "TID253", # banned-module-level-imports
+  "TD006", # invalid-todo-capitalization
+  "TRY", # tryceratops
+  "UP", # pyupgrade
+  "YTT", # flake8-2020
+]
+lint.ignore = [
+  "E501", # line-too-long
+  "PLR2004", # magic-value-comparison
+  "PLR0913", # too-many-arguments
+]
+
+lint.extend-safe-fixes = ["UP006", "UP007"]
+line-length = 88
+preview = true
+target-version = "py311"
+
+[lint.flake8-pytest-style]
+fixture-parentheses = false
+mark-parentheses = false
+
+
+[lint.isort]
+required-imports = ["from __future__ import annotations"]

@@ -7,14 +7,16 @@ from os import chdir, environ
 from pathlib import Path
 from subprocess import check_output
 from sys import stdout
-from typing import Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, TypedDict
 from zoneinfo import ZoneInfo
 
 from git.repo import Repo
 from github import Github, GithubIntegration, InputGitTreeElement
 from github.CheckRun import CheckRun
-from github.PullRequest import PullRequest
-from github.Repository import Repository
+
+if TYPE_CHECKING:
+    from github.PullRequest import PullRequest
+    from github.Repository import Repository
 
 ANNOTATION_PAGE_SIZE = 50
 
@@ -74,6 +76,7 @@ class Action(TypedDict):
 
 
 def create_check_run(
+    *,
     repo: Repository,
     name: str,
     head_sha: str,
@@ -222,7 +225,7 @@ def create_a_pull_request(
             paths=updated_paths,
             commit_message=title,
         )
-        body = f'Codemod Command: `{codemod}`\nCreated from {environ["GITHUB_SERVER_URL"]}/{environ["GITHUB_REPOSITORY"]}/actions/runs/{environ["GITHUB_RUN_ID"]} by {actor}'
+        body = f"Codemod Command: `{codemod}`\nCreated from {environ['GITHUB_SERVER_URL']}/{environ['GITHUB_REPOSITORY']}/actions/runs/{environ['GITHUB_RUN_ID']} by {actor}"
         if extra_body:
             body += f"\n\n{extra_body}"
         pull = github_repo.create_pull(title=title, body=body, base="master", head=ref)
