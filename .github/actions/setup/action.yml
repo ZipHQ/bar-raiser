@@ -1,0 +1,10 @@
+name: "Setup"
+description: "Setup PDM and install dependencies"
+runs:
+  using: "composite"
+  steps:
+    - uses: pdm-project/setup-pdm@v4
+      with:
+        cache: true
+    - run: pdm install
+      shell: bash

@@ -9,7 +9,7 @@ Create GitHub Checks for Enhanced Developer Experiences:
 - **Simplified Results**: View linter or test results in a dedicated check page, eliminating the need to sift through console output.
 - **Inline Annotations**: View linter or test errors as annotations on GitHub Pull Requests, making it easier to understand errors in the context of the code.
 - **Autofix Support**: Apply auto-fixes with a single click. This feature requires setting up a web service to receive GitHub webhook events and apply the autofix on the PR.
-- **Slack Notifications**: Sends Slack notifications on check failures based on a provided mapping from GitHub login to Slack user ID. A SLACK_BOT_TOKEN and a Github login to Slack user ID mapping file is needed.
+- **Slack Notifications**: Sends Slack notifications on check failures based on a provided mapping from GitHub login to Slack user ID. A SLACK_BOT_TOKEN and a GitHub login to Slack user ID mapping file are needed.
 
 The `checks/annotate_ruff.py` module provides the following main features:
 
