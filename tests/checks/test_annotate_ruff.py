@@ -5,7 +5,7 @@ from pathlib import Path
 from subprocess import CalledProcessError
 from unittest.mock import MagicMock, patch
 
-from bar_raiser.checks.annotate_run_ruff import (
+from bar_raiser.checks.annotate_ruff import (
     RUFF_CHECK_PATTERNS,
     RUFF_FORMAT_PATTERNS,
     main,
@@ -14,15 +14,15 @@ from bar_raiser.utils.check import get_annotations_and_actions
 
 RUFF_FORMAT_OUTPUT = """\
 error: Failed to format apply_autofixes.py: source contains syntax errors: ParseError { error: UnrecognizedToken(Colon, None), offset: 554, source_path: "<filename>" }
-error: Failed to format test_annotate_run_ruff.py: source contains syntax errors: ParseError { error: UnrecognizedToken(Semi, None), offset: 957, source_path: "<filename>" }
-Would reformat: annotate_run_ruff.py
+error: Failed to format test_annotate_ruff.py: source contains syntax errors: ParseError { error: UnrecognizedToken(Semi, None), offset: 957, source_path: "<filename>" }
+Would reformat: annotate_ruff.py
 1 file would be reformatted, 7975 files left unchanged
 """
 
 RUFF_CHECK_OUTPUT = """\
-error: Failed to parse annotate_run_ruff.py:68:14: Unexpected token 'if'
+error: Failed to parse annotate_ruff.py:68:14: Unexpected token 'if'
 charts.py:1:1: I002 [*] Missing required import: `from __future__ import annotations`
-test_annotate_run_ruff.py:5:22: F401 [*] `unittest.mock` imported but unused
+test_annotate_ruff.py:5:22: F401 [*] `unittest.mock` imported but unused
 Found 2 errors.
 [*] 2 fixable with the `--fix` option.
 """
@@ -33,7 +33,7 @@ WORKING_DIR = "/home/user/bar_raiser/subfolder"
 
 def test_get_annotations_and_actions_for_ruff_format() -> None:
     with patch(
-        "bar_raiser.checks.annotate_run_ruff.Path.cwd",
+        "bar_raiser.checks.annotate_ruff.Path.cwd",
         return_value=Path(WORKING_DIR),
     ):
         assert get_annotations_and_actions(
@@ -50,14 +50,14 @@ def test_get_annotations_and_actions_for_ruff_format() -> None:
                     "message": "source contains syntax errors: ParseError { error: UnrecognizedToken(Colon, None)",
                 },
                 {
-                    "path": "subfolder/test_annotate_run_ruff.py",
+                    "path": "subfolder/test_annotate_ruff.py",
                     "start_line": 957,
                     "end_line": 957,
                     "annotation_level": "failure",
                     "message": "source contains syntax errors: ParseError { error: UnrecognizedToken(Semi, None)",
                 },
                 {
-                    "path": "subfolder/annotate_run_ruff.py",
+                    "path": "subfolder/annotate_ruff.py",
                     "start_line": 1,
                     "end_line": 1,
                     "annotation_level": "failure",
@@ -74,7 +74,7 @@ def test_get_annotations_and_actions_for_ruff_format() -> None:
 
 def test_get_annotations_and_actions_for_ruff_check() -> None:
     with patch(
-        "bar_raiser.checks.annotate_run_ruff.Path.cwd",
+        "bar_raiser.checks.annotate_ruff.Path.cwd",
         return_value=Path(WORKING_DIR),
     ):
         assert get_annotations_and_actions(
@@ -82,7 +82,7 @@ def test_get_annotations_and_actions_for_ruff_check() -> None:
         ) == (
             [
                 {
-                    "path": "subfolder/annotate_run_ruff.py",
+                    "path": "subfolder/annotate_ruff.py",
                     "start_line": 68,
                     "end_line": 68,
                     "annotation_level": "failure",
@@ -96,7 +96,7 @@ def test_get_annotations_and_actions_for_ruff_check() -> None:
                     "message": "I002 [*] Missing required import: `from __future__ import annotations`",
                 },
                 {
-                    "path": "subfolder/test_annotate_run_ruff.py",
+                    "path": "subfolder/test_annotate_ruff.py",
                     "start_line": 5,
                     "end_line": 5,
                     "annotation_level": "failure",
@@ -113,7 +113,7 @@ def test_get_annotations_and_actions_for_ruff_check() -> None:
 
 def test_main() -> None:
     returncode = -1
-    target_module = "bar_raiser.checks.annotate_run_ruff"
+    target_module = "bar_raiser.checks.annotate_ruff"
 
     def mock_check_output(cmds: list[str], stderr: int):
         match cmds[1]:
@@ -137,10 +137,10 @@ def test_main() -> None:
         patch(f"{target_module}.get_head_sha", return_value="1"),
         patch(f"{target_module}.exit") as mock_exit,
         patch(
-            "bar_raiser.checks.annotate_run_ruff.Path.cwd",
+            "bar_raiser.checks.annotate_ruff.Path.cwd",
             return_value=Path(WORKING_DIR),
         ),
-        patch.object(sys, "argv", ["annotate_run_ruff.py"]),
+        patch.object(sys, "argv", ["annotate_ruff.py"]),
     ):
         mock_git_repo.return_value.working_dir = Path(WORKING_DIR)
         main()
@@ -157,7 +157,7 @@ def test_main() -> None:
 
 def test_main_only_fail_on_format() -> None:
     returncode = -1
-    target_module = "bar_raiser.checks.annotate_run_ruff"
+    target_module = "bar_raiser.checks.annotate_ruff"
 
     def mock_check_output(cmds: list[str], stderr: int) -> MagicMock | None:
         match cmds[1]:
@@ -179,10 +179,10 @@ def test_main_only_fail_on_format() -> None:
         patch(f"{target_module}.get_head_sha", return_value="1"),
         patch(f"{target_module}.exit") as mock_exit,
         patch(
-            "bar_raiser.checks.annotate_run_ruff.Path.cwd",
+            "bar_raiser.checks.annotate_ruff.Path.cwd",
             return_value=Path(WORKING_DIR),
         ),
-        patch.object(sys, "argv", ["annotate_run_ruff.py"]),
+        patch.object(sys, "argv", ["annotate_ruff.py"]),
     ):
         mock_git_repo.return_value.working_dir = Path(REPO_DIR)
         main()
