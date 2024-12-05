@@ -4,8 +4,6 @@ from pathlib import Path
 from subprocess import CalledProcessError
 from unittest.mock import MagicMock, patch
 
-from git import Commit
-
 from bar_raiser.checks.annotate_run_ruff import (
     RUFF_CHECK_PATTERNS,
     RUFF_FORMAT_PATTERNS,
@@ -135,23 +133,21 @@ def test_main() -> None:
         ),
         patch(f"{target_module}.get_github_repo"),
         patch(f"{target_module}.get_git_repo") as mock_git_repo,
+        patch(f"{target_module}.get_head_sha", return_value="1"),
         patch(f"{target_module}.exit") as mock_exit,
         patch(
             "bar_raiser.checks.annotate_run_ruff.Path.cwd",
-            return_value=Path("/home/admin/evergreen/website"),
+            return_value=Path(WORKING_DIR),
         ),
     ):
-        mock_git_repo.return_value.working_dir = Path("/home/admin/evergreen/")
-        mock_git_repo.return_value.head.commit.parents = [
-            MagicMock(spec=Commit, hexsha="1"),
-        ]
+        mock_git_repo.return_value.working_dir = Path(WORKING_DIR)
         main()
         assert len(mock_create_check_run.call_args_list) == 1
         kwargs = mock_create_check_run.call_args_list[0].kwargs
         assert kwargs["name"] == "python-ruff-report"
         assert kwargs["head_sha"] == "1"
         assert kwargs["conclusion"] == "action_required"
-        assert kwargs["title"] == "Python Ruff formatter"
+        assert kwargs["title"] == "Python Ruff formatter and linter"
         assert len(kwargs["annotations"]) == 6
         assert len(kwargs["actions"]) == 1
         mock_exit.assert_called_once_with(returncode)
@@ -178,23 +174,21 @@ def test_main_only_fail_on_format() -> None:
         ),
         patch(f"{target_module}.get_github_repo"),
         patch(f"{target_module}.get_git_repo") as mock_git_repo,
+        patch(f"{target_module}.get_head_sha", return_value="1"),
         patch(f"{target_module}.exit") as mock_exit,
         patch(
             "bar_raiser.checks.annotate_run_ruff.Path.cwd",
-            return_value=Path("/home/admin/evergreen/website"),
+            return_value=Path(WORKING_DIR),
         ),
     ):
-        mock_git_repo.return_value.working_dir = Path("/home/admin/evergreen/")
-        mock_git_repo.return_value.head.commit.parents = [
-            MagicMock(spec=Commit, hexsha="1"),
-        ]
+        mock_git_repo.return_value.working_dir = Path(REPO_DIR)
         main()
         assert len(mock_create_check_run.call_args_list) == 1
         kwargs = mock_create_check_run.call_args_list[0].kwargs
         assert kwargs["name"] == "python-ruff-report"
         assert kwargs["head_sha"] == "1"
         assert kwargs["conclusion"] == "action_required"
-        assert kwargs["title"] == "Python Ruff formatter"
+        assert kwargs["title"] == "Python Ruff formatter and linter"
         assert len(kwargs["annotations"]) == 3
         assert len(kwargs["actions"]) == 1
         mock_exit.assert_called_once_with(returncode)

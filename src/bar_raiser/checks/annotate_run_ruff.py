@@ -13,6 +13,7 @@ from bar_raiser.utils.github import (
     create_check_run,
     get_git_repo,
     get_github_repo,
+    get_head_sha,
     initialize_logging,
 )
 
@@ -99,9 +100,9 @@ def main() -> None:
     checks = create_check_run(
         repo=get_github_repo(),
         name=CHECK_NAME,
-        head_sha=git_repo.head.commit.parents[-1].hexsha,  # pyright: ignore[reportUnknownMemberType,reportUnknownArgumentType]
+        head_sha=get_head_sha(),
         conclusion="success" if len(annotations) == 0 else "action_required",
-        title="Python Ruff formatter",
+        title="Python Ruff formatter and linter",
         summary=summary,
         annotations=annotations,
         actions=list(actions),

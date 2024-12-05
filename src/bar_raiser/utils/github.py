@@ -46,6 +46,12 @@ def get_pull_request() -> PullRequest | None:
         return None
 
 
+def get_head_sha() -> str:
+    if get_pull_request():  # pull requests have a virtual merge commit
+        return get_git_repo().head.commit.parents[-1].hexsha
+    return get_git_repo().head.commit.hexsha
+
+
 def has_previous_issue_comment(pull: PullRequest, author: str, body: str) -> bool:
     for comment in pull.get_issue_comments():
         if comment.user.login == author and body in comment.body:
