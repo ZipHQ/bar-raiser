@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from argparse import ArgumentParser
 from dataclasses import dataclass
 from pathlib import Path
 from re import match
@@ -67,3 +68,16 @@ def get_annotations_and_actions(
         else None
     )
     return annotations, action
+
+
+def create_arg_parser() -> ArgumentParser:
+    parser = ArgumentParser(
+        description="Run checks and optionally send Slack DMs on failure."
+    )
+    parser.add_argument(
+        "--slack-dm-on-failure",
+        type=Path,
+        help="Path to a JSON file containing a mapping from GitHub login to Slack user ID.",
+        default=None,
+    )
+    return parser

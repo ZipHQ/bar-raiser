@@ -6,7 +6,11 @@ from subprocess import STDOUT, CalledProcessError, check_output
 from sys import exit
 from typing import TYPE_CHECKING
 
-from bar_raiser.utils.check import CheckPattern, get_annotations_and_actions
+from bar_raiser.utils.check import (
+    CheckPattern,
+    create_arg_parser,
+    get_annotations_and_actions,
+)
 from bar_raiser.utils.github import (
     Action,
     Annotation,
@@ -16,6 +20,7 @@ from bar_raiser.utils.github import (
     get_head_sha,
     initialize_logging,
 )
+from bar_raiser.utils.slack import dm_on_check_failure
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -53,6 +58,7 @@ RUFF_CHECK_PATTERNS = [CANNOT_PARSE_PATTERN, CHECK_ERROR_PATTERN, FIXABLE_PATTER
 
 def main() -> None:
     initialize_logging()
+    args = create_arg_parser().parse_args()
     git_repo = get_git_repo()
     annotations: list[Annotation] = []
     actions: list[Action] = []
@@ -120,6 +126,9 @@ def main() -> None:
         logger.info(
             "To fix check errors manually in your working directory, run: `ruff check --fix .`"
         )
+
+    if args.slack_dm_on_failure:
+        dm_on_check_failure(checks, args.slack_dm_on_failure)
 
     exit(return_code)
 

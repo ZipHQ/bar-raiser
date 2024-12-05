@@ -37,6 +37,8 @@ The project uses the following dependencies:
 
 - [PyGithub](https://github.com/PyGithub/PyGithub) (MIT License): A Python library to access the GitHub API v3.
 - [GitPython](https://github.com/gitpython-developers/GitPython) (BSD License): A Python library used to interact with Git repositories.
+- [cryptography](https://github.com/pyca/cryptography) (Apache License 2.0 or BSD License): A Python library providing cryptographic recipes and primitives.
+- [slackclient](https://github.com/slackapi/python-slack-sdk) (MIT License): A Python library for interacting with the Slack API.
 
 ### Development Dependencies
 

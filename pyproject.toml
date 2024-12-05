@@ -7,7 +7,8 @@ authors = [
 dependencies = [
     "pygithub>=2.2.0",
     "gitpython>=3.1.41",
-    "cryptography>=42.0.4"
+    "cryptography>=42.0.4",
+    "slackclient>=2.7.2"
 ]
 requires-python = ">=3.11"
 readme = "README.md"
@@ -37,6 +38,7 @@ venv = ".venv"
 
 [tool.pdm]
 distribution = true
+python_requires = ">=3.11"
 
 [tool.pdm.version]
 source = "scm"

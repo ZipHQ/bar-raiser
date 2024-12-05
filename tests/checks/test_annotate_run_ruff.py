@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from subprocess import CalledProcessError
 from unittest.mock import MagicMock, patch
@@ -139,6 +140,7 @@ def test_main() -> None:
             "bar_raiser.checks.annotate_run_ruff.Path.cwd",
             return_value=Path(WORKING_DIR),
         ),
+        patch.object(sys, "argv", ["annotate_run_ruff.py"]),
     ):
         mock_git_repo.return_value.working_dir = Path(WORKING_DIR)
         main()
@@ -180,6 +182,7 @@ def test_main_only_fail_on_format() -> None:
             "bar_raiser.checks.annotate_run_ruff.Path.cwd",
             return_value=Path(WORKING_DIR),
         ),
+        patch.object(sys, "argv", ["annotate_run_ruff.py"]),
     ):
         mock_git_repo.return_value.working_dir = Path(REPO_DIR)
         main()
