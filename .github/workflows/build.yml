@@ -1,0 +1,24 @@
+---
+name: "build"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ruff:
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pdm-project/setup-pdm@v4
+      - run: pdm install
+      - run: pdm run python3 -m bar_raiser.checks.annotate_run_ruff
+        env:
+          APP_ID: ${{ secrets.BAR_RAISER_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.BAR_RAISER_PRIVATE_KEY }}
+          PULL_NUMBER: ${{ github.event.pull_request.number }}
+          SLACK_BOT_TOKEN: ${{ secrets.BAR_RAISER_SLACK_BOT_TOKEN }}
