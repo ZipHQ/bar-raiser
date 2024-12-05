@@ -16,9 +16,28 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pdm-project/setup-pdm@v4
       - run: pdm install
-      - run: pdm run python3 -m bar_raiser.checks.annotate_run_ruff
+      - run: pdm run python3 -m bar_raiser.checks.annotate_ruff
         env:
           APP_ID: ${{ secrets.BAR_RAISER_APP_ID }}
           PRIVATE_KEY: ${{ secrets.BAR_RAISER_PRIVATE_KEY }}
           PULL_NUMBER: ${{ github.event.pull_request.number }}
           SLACK_BOT_TOKEN: ${{ secrets.BAR_RAISER_SLACK_BOT_TOKEN }}
+
+  pytest:
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pdm-project/setup-pdm@v4
+      - run: pdm install
+      - run: pdm run pytest --json-report tests || echo $? > pytest-exit-code.txt
+      - run: pdm run python3 -m bar_raiser.checks.annotate_pytest .report.json
+        env:
+          APP_ID: ${{ secrets.BAR_RAISER_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.BAR_RAISER_PRIVATE_KEY }}
+          PULL_NUMBER: ${{ github.event.pull_request.number }}
+          SLACK_BOT_TOKEN: ${{ secrets.BAR_RAISER_SLACK_BOT_TOKEN }}
+      - name: Exit with pytest exit code
+        run: |
+          if [ -f pytest-exit-code.txt ]; then
+            exit $(cat pytest-exit-code.txt)
+          fi
