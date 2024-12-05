@@ -20,6 +20,11 @@ The `checks/annotate_pytest.py` module provides the following main features:
 
 - **Pytest Integration**: Parses Pytest JSON reports and creates GitHub check runs with annotations for failed tests.
 
+The `checks/annotate_pyright.py` module provides the following main features:
+
+- **Pyright Integration**: Runs Pyright type checker, parses the output, and creates GitHub check runs with annotations and actions.
+- **Autofix Support**: Provides an autofix action to automatically fix issues detected by Pyright.
+
 ## Getting Started (For Developers)
 
 1. Clone the repository:

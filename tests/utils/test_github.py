@@ -61,10 +61,7 @@ def test_create_check_run_with_pagination() -> None:
         ],
         actions=[],
     )
-    assert (
-        mock_repo.create_check_run.call_count  # pyright: ignore[reportUnknownMemberType]
-        == 2
-    )
+    assert mock_repo.create_check_run.call_count == 2
 
 
 def test_create_check_run_with_no_annotations() -> None:
@@ -79,25 +76,19 @@ def test_create_check_run_with_no_annotations() -> None:
         annotations=[],
         actions=[],
     )
-    assert (
-        mock_repo.create_check_run.call_count  # pyright: ignore[reportUnknownMemberType]
-        == 1
-    )
+    assert mock_repo.create_check_run.call_count == 1
 
 
 def test_commit_changes() -> None:
     mock_repo = MagicMock(spec=Repository)
     # fmt: off
-    mock_repo.create_git_blob.return_value = MagicMock(  # pyright: ignore[reportUnknownMemberType]
+    mock_repo.create_git_blob.return_value = MagicMock(
         sha="a_sha"
     )
     # fmt: on
     with patch("bar_raiser.utils.github.open", mock_open(read_data="")):
         commit_changes(mock_repo, "a_branch", "a_sha", ["a.py"], "a_commit_message")
-    assert (
-        mock_repo.create_git_commit.call_count  # pyright: ignore[reportUnknownMemberType]
-        == 1
-    )
+    assert mock_repo.create_git_commit.call_count == 1
     mock_repo.reset_mock()
 
     with patch("bar_raiser.utils.github.open", mock_open(read_data="")):
@@ -108,10 +99,7 @@ def test_commit_changes() -> None:
             [f"a_{i}.py" for i in range(201)],
             "a_commit_message",
         )
-    assert (
-        mock_repo.create_git_commit.call_count  # pyright: ignore[reportUnknownMemberType]
-        == 2
-    )
+    assert mock_repo.create_git_commit.call_count == 2
 
 
 def test_run_codemod_and_commit_changes() -> None:
@@ -127,28 +115,28 @@ def test_run_codemod_and_commit_changes() -> None:
         )
         mock_check_output.assert_called_with(["black"])
         mock_commit_changes.assert_not_called()
-        mock_pull = mock_repo.get_pull.return_value  # pyright: ignore[reportUnknownMemberType]
-        mock_pull.create_issue_comment.assert_called_once_with(  # pyright: ignore[reportUnknownMemberType]
+        mock_pull = mock_repo.get_pull.return_value
+        mock_pull.create_issue_comment.assert_called_once_with(
             "No updated paths to commit."
         )
 
         mock_git_repo.return_value.index.diff.return_value = [
             MagicMock(spec=Diff, b_path="a.py")
         ]
-        mock_pull.get_files.return_value = [  # pyright: ignore[reportUnknownMemberType]
+        mock_pull.get_files.return_value = [
             MagicMock(spec=str, status="added", filename="a.py")
         ]
-        mock_pull.create_issue_comment.reset_mock()  # pyright: ignore[reportUnknownMemberType]
+        mock_pull.create_issue_comment.reset_mock()
         run_codemod_and_commit_changes(
             mock_repo, 123, [["black"]], "Apply Black Format", run_on_updated_paths=True
         )
         mock_commit_changes.assert_called_once()
-        mock_pull.create_issue_comment.assert_not_called()  # pyright: ignore[reportUnknownMemberType]
+        mock_pull.create_issue_comment.assert_not_called()
 
 
 def test_get_updated_paths() -> None:
     mock_pull = MagicMock(spec=PullRequest)
-    mock_pull.get_files.return_value = [  # pyright: ignore[reportUnknownMemberType]
+    mock_pull.get_files.return_value = [
         MagicMock(spec=File, filename="a.py", status="added"),
         MagicMock(spec=File, filename="b.py", status="removed"),
     ]
@@ -179,17 +167,15 @@ def test_create_a_pull_request() -> None:
             extra_body="some more context",
         )
         mock_commit_changes.assert_called_once()
-        mock_github_repo.create_pull.assert_called_once()  # pyright: ignore[reportUnknownMemberType]
-        call = mock_github_repo.create_pull.call_args  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-        assert call.kwargs["title"].startswith(  # pyright: ignore[reportUnknownMemberType]
+        mock_github_repo.create_pull.assert_called_once()
+        call = mock_github_repo.create_pull.call_args
+        assert call.kwargs["title"].startswith(
             "Codemod convert_to_async.AsyncFunctionTransformer by jimmy at "
         )
-        assert call.kwargs["head"].startswith(  # pyright: ignore[reportUnknownMemberType]
+        assert call.kwargs["head"].startswith(
             "refs/heads/codemod-convert_to_async.AsyncFunctionTransformer-"
         )
-        assert call.kwargs["body"].endswith(  # pyright: ignore[reportUnknownMemberType]
-            "some more context"
-        )
+        assert call.kwargs["body"].endswith("some more context")
 
 
 def test_has_previous_issue_comment() -> None:

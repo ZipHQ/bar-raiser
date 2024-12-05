@@ -22,16 +22,20 @@ repos:
         args: [--fix, --exit-non-zero-on-fix, --show-fixes, --unsafe-fixes]
       - id: ruff-format
 
-  - repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.389
+  - repo: local
     hooks:
       - id: pyright
+        name: pyright
+        entry: pdm run pyright .
+        language: system
+        pass_filenames: false
+        always_run: true
 
   - repo: local
     hooks:
       - id: pytest
         name: pytest
-        entry: ./.venv/bin/pytest --cov=src --cov-fail-under=80 tests
+        entry: pdm run pytest --cov=src --cov-fail-under=80 tests
         language: system
         pass_filenames: false
         always_run: true

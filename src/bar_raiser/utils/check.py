@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from re import match
 
-from bar_raiser.utils.github import Action, Annotation
+from bar_raiser.utils.github import Action, Annotation, Autofixes
 
 
 @dataclass(frozen=True)
@@ -40,7 +40,7 @@ def parse_line(
 
 
 def get_annotations_and_actions(
-    repo_dir: Path, ruff_output: str, patterns: list[CheckPattern]
+    repo_dir: Path, ruff_output: str, patterns: list[CheckPattern], autofix: Autofixes
 ) -> tuple[list[Annotation], Action | None]:
     annotations: list[Annotation] = []
     is_autofix_available = False
@@ -62,7 +62,7 @@ def get_annotations_and_actions(
         Action(
             label="autofix",
             description="Click to auto-push an autofix commit",
-            identifier="autofix-ruff",
+            identifier=str(autofix),
         )
         if is_autofix_available
         else None

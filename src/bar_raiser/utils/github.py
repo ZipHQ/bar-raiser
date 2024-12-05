@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
+from enum import StrEnum
 from logging import INFO, basicConfig, getLogger
 from os import chdir, environ
 from pathlib import Path
@@ -246,3 +247,8 @@ def initialize_logging() -> None:
         level=INFO,
         format="%(asctime)s %(levelname)s %(module)s - %(funcName)s: %(message)s",
     )
+
+
+class Autofixes(StrEnum):
+    RUFF = "autofix-ruff"
+    PYRIGHT_IGNORES = "pyright-ignores"

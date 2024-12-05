@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 def post_a_slack_message(channel: str, text: str):
     client = WebClient(token=environ["SLACK_BOT_TOKEN"])
-    client.chat_postMessage(channel=channel, text=text)
+    client.chat_postMessage(channel=channel, text=text)  # pyright: ignore[reportUnknownMemberType]
 
 
 def get_slack_user_id_from_github_login(
