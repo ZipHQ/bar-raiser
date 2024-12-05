@@ -4,13 +4,21 @@ Bar-Raiser is a cutting-edge framework designed to help engineering teams tackle
 
 ### Main Features
 
-The `github.py` module provides the following main features:
+Create GitHub Checks for Enhanced Developer Experiences:
 
-- **GitHub Integration**: Functions to authenticate and interact with the GitHub API using a GitHub App.
-- **Repository Management**: Functions to retrieve repository and pull request information.
-- **Commit Management**: Functions to commit changes to a repository, including batching changes and creating new branches.
-- **Check Runs**: Functions to create and manage GitHub check runs, including handling annotations and actions.
-- **Logging**: Utility to initialize logging for the module.
+- **Simplified Results**: View linter or test results in a dedicated check page, eliminating the need to sift through console output.
+- **Inline Annotations**: View linter or test errors as annotations on GitHub Pull Requests, making it easier to understand errors in the context of the code.
+- **Autofix Support**: Apply auto-fixes with a single click. This feature requires setting up a web service to receive GitHub webhook events and apply the autofix on the PR.
+- **Slack Notifications**: Sends Slack notifications on check failures based on a provided mapping from GitHub login to Slack user ID. A SLACK_BOT_TOKEN and a Github login to Slack user ID mapping file is needed.
+
+The `checks/annotate_ruff.py` module provides the following main features:
+
+- **Ruff Integration**: Runs Ruff formatter and linter, parses the output, and creates GitHub check runs with annotations and actions.
+- **Autofix Support**: Provides an autofix action to automatically fix issues detected by Ruff.
+
+The `checks/annotate_pytest.py` module provides the following main features:
+
+- **Pytest Integration**: Parses Pytest JSON reports and creates GitHub check runs with annotations for failed tests.
 
 ## Getting Started (For Developers)
 
@@ -22,7 +30,7 @@ The `github.py` module provides the following main features:
    ```sh
    pip install pdm
    ```
-3. Install dependences in a local .venv folder:
+3. Install dependencies in a local .venv folder:
    ```sh
    pdm install
    ```
@@ -50,6 +58,7 @@ The project also includes development dependencies for testing, linting, and cod
 - [ruff](https://github.com/charliermarsh/ruff) (MIT License): An extremely fast Python linter and formatter.
 - [pyright](https://github.com/microsoft/pyright) (MIT License): A static type checker for Python.
 - [pre-commit](https://github.com/pre-commit/pre-commit) (MIT License): A framework for managing and maintaining multi-language pre-commit hooks.
+- [pytest-json-report](https://github.com/numirias/pytest-json-report) (MIT License): A plugin for creating JSON reports with pytest.
 
 ### Pre-commit Hooks
 
