@@ -222,7 +222,7 @@ def create_a_pull_request(
             paths=updated_paths,
             commit_message=title,
         )
-        body = f'Codemod Command: `{codemod}`\nCreated from {environ["GITHUB_SERVER_URL"]}/{environ["GITHUB_REPOSITORY"]}/actions/runs/{environ["GITHUB_RUN_ID"]} by {actor}'
+        body = f"Codemod Command: `{codemod}`\nCreated from {environ['GITHUB_SERVER_URL']}/{environ['GITHUB_REPOSITORY']}/actions/runs/{environ['GITHUB_RUN_ID']} by {actor}"
         if extra_body:
             body += f"\n\n{extra_body}"
         pull = github_repo.create_pull(title=title, body=body, base="master", head=ref)

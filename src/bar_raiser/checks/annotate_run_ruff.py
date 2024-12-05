@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from logging import getLogger
 from pathlib import Path
 from subprocess import STDOUT, CalledProcessError, check_output
 from sys import exit
-from typing import Callable
 
 from bar_raiser.utils.check import CheckPattern, get_annotations_and_actions
 from bar_raiser.utils.github import (

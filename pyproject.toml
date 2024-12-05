@@ -37,6 +37,7 @@ venv = ".venv"
 
 [tool.pdm]
 distribution = true
+python_requires = ">=3.11"
 
 [tool.pdm.version]
 source = "scm"
