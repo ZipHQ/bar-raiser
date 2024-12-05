@@ -52,7 +52,7 @@ def has_previous_issue_comment(pull: PullRequest, author: str, body: str) -> boo
 
 
 def get_git_repo() -> Repo:
-    return Repo(Path(__file__).parent.parent.parent.parent)
+    return Repo(".", search_parent_directories=True)
 
 
 def get_git_repo_path() -> Path:
