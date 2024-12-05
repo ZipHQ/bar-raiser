@@ -14,6 +14,7 @@ from bar_raiser.utils.check import (
 from bar_raiser.utils.github import (
     Action,
     Annotation,
+    Autofixes,
     create_check_run,
     get_git_repo,
     get_github_repo,
@@ -68,13 +69,19 @@ def main() -> None:
         (
             ["ruff", "format", "--check", "."],
             lambda wd, output: get_annotations_and_actions(
-                wd, output, [WOULD_REFORMAT_PATTERN, CANNOT_FORMAT_PATTERN]
+                wd,
+                output,
+                [WOULD_REFORMAT_PATTERN, CANNOT_FORMAT_PATTERN],
+                Autofixes.RUFF,
             ),
         ),
         (
             ["ruff", "check", "."],
             lambda wd, output: get_annotations_and_actions(
-                wd, output, [CHECK_ERROR_PATTERN, CANNOT_PARSE_PATTERN, FIXABLE_PATTERN]
+                wd,
+                output,
+                [CHECK_ERROR_PATTERN, CANNOT_PARSE_PATTERN, FIXABLE_PATTERN],
+                Autofixes.RUFF,
             ),
         ),
     ]

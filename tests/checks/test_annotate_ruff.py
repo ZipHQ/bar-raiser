@@ -11,6 +11,7 @@ from bar_raiser.checks.annotate_ruff import (
     main,
 )
 from bar_raiser.utils.check import get_annotations_and_actions
+from bar_raiser.utils.github import Autofixes
 
 RUFF_FORMAT_OUTPUT = """\
 error: Failed to format apply_autofixes.py: source contains syntax errors: ParseError { error: UnrecognizedToken(Colon, None), offset: 554, source_path: "<filename>" }
@@ -37,9 +38,7 @@ def test_get_annotations_and_actions_for_ruff_format() -> None:
         return_value=Path(WORKING_DIR),
     ):
         assert get_annotations_and_actions(
-            Path(REPO_DIR),
-            RUFF_FORMAT_OUTPUT,
-            RUFF_FORMAT_PATTERNS,
+            Path(REPO_DIR), RUFF_FORMAT_OUTPUT, RUFF_FORMAT_PATTERNS, Autofixes.RUFF
         ) == (
             [
                 {
@@ -78,7 +77,7 @@ def test_get_annotations_and_actions_for_ruff_check() -> None:
         return_value=Path(WORKING_DIR),
     ):
         assert get_annotations_and_actions(
-            Path(REPO_DIR), RUFF_CHECK_OUTPUT, RUFF_CHECK_PATTERNS
+            Path(REPO_DIR), RUFF_CHECK_OUTPUT, RUFF_CHECK_PATTERNS, Autofixes.RUFF
         ) == (
             [
                 {

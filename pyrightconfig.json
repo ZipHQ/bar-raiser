@@ -1,0 +1,39 @@
+{
+  "enableTypeIgnoreComments": false,
+  "exclude": [],
+  "executionEnvironments": [
+    {
+      "root": "."
+    }
+  ],
+  "ignore": [],
+  "include": [
+    "src"
+  ],
+  "pythonPlatform": "Linux",
+  "pythonVersion": "3.11",
+  "reportIncompatibleMethodOverride": "error",
+  "reportMissingImports": "none",
+  "reportMissingParameterType": "error",
+  "reportMissingTypeArgument": "error",
+  "reportMissingTypeStubs": "none",
+  "reportSelfClsParameterName": "none",
+  "reportTypeCommentUsage": "error",
+  "reportUnknownArgumentType": "error",
+  "reportUnknownLambdaType": "error",
+  "reportUnknownMemberType": "error",
+  "reportUnknownParameterType": "error",
+  "reportUnknownVariableType": "error",
+  "reportUnnecessaryCast": "error",
+  "reportUnnecessaryComparison": "error",
+  "reportUnnecessaryContains": "error",
+  "reportUnnecessaryIsInstance": "error",
+  "reportUnnecessaryTypeIgnoreComment": "error",
+  "reportUntypedBaseClass": "error",
+  "reportUntypedClassDecorator": "error",
+  "reportUntypedFunctionDecorator": "error",
+  "reportUntypedNamedTuple": "error",
+  "reportUnusedExpression": "error",
+  "stubPath": "typings",
+  "useLibraryCodeForTypes": true
+}
