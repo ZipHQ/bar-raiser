@@ -1,31 +1,44 @@
-# bar-raiser
+# Bar-Raiser
 
 Bar-Raiser is a cutting-edge framework designed to help engineering teams tackle technical debt, streamline development workflows, and elevate code quality.
 
-### Main Features
+## Main Features
 
-Create GitHub Checks for Enhanced Developer Experiences:
+### Create GitHub Checks for Enhanced Developer Experiences
 
 - **Simplified Results**: View linter or test results in a dedicated check page, eliminating the need to sift through console output.
 - **Inline Annotations**: View linter or test errors as annotations on GitHub Pull Requests, making it easier to understand errors in the context of the code.
 - **Autofix Support**: Apply auto-fixes with a single click. This feature requires setting up a web service to receive GitHub webhook events and apply the autofix on the PR.
 - **Slack Notifications**: Sends Slack notifications on check failures based on a provided mapping from GitHub login to Slack user ID. A SLACK_BOT_TOKEN and a GitHub login to Slack user ID mapping file are needed.
 
-The `checks/annotate_ruff.py` module provides the following main features:
+#### Examples
+
+- [Check Run Example](https://github.com/ZipHQ/bar-raiser/pull/1/checks?check_run_id=33949411572)
+  ![python-ruff-report](docs/images/readme/python-ruff-report.png)
+- [File Annotations Example](https://github.com/ZipHQ/bar-raiser/pull/1/files)
+  ![Ruff annotations](docs/images/readme/ruff_check_annotations.png)
+
+#### Available Checks
+
+The following checks are available and can be configured in a CI workflow e.g. [build.yml](.github/workflows/build.yml) file. Ensure to provide the necessary environment variables (`APP_ID`, `PRIVATE_KEY`, `PULL_NUMBER`, `SLACK_BOT_TOKEN` (optional)).
+
+#### `checks/annotate_ruff.py` Module
 
 - **Ruff Integration**: Runs Ruff formatter and linter, parses the output, and creates GitHub check runs with annotations and actions.
 - **Autofix Support**: Provides an autofix action to automatically fix issues detected by Ruff.
 
-The `checks/annotate_pytest.py` module provides the following main features:
+#### `checks/annotate_pytest.py` Module
 
 - **Pytest Integration**: Parses Pytest JSON reports and creates GitHub check runs with annotations for failed tests.
 
-The `checks/annotate_pyright.py` module provides the following main features:
+#### `checks/annotate_pyright.py` Module
 
 - **Pyright Integration**: Runs Pyright type checker, parses the output, and creates GitHub check runs with annotations and actions.
 - **Autofix Support**: Provides an autofix action to automatically fix issues detected by Pyright.
 
 ## Getting Started (For Developers)
+
+### Prerequisites
 
 1. Clone the repository:
    ```sh
@@ -35,7 +48,7 @@ The `checks/annotate_pyright.py` module provides the following main features:
    ```sh
    pip install pdm
    ```
-3. Install dependencies in a local .venv folder:
+3. Install dependencies in a local `.venv` folder:
    ```sh
    pdm install
    ```
@@ -93,7 +106,7 @@ To execute the test suite, run:
 pdm run pytest
 ```
 
-### Contributing
+## Contributing
 
 1. Fork the repository.
 2. Create a new branch (`git checkout -b feature-branch`).
@@ -102,13 +115,13 @@ pdm run pytest
 5. Push to the branch (`git push origin feature-branch`).
 6. Open a pull request.
 
-### Coding Standards
+## Coding Standards
 
 - Follow the existing code style.
 - Write unit tests for new features.
 - Ensure all tests pass before submitting a pull request.
 
-### Making a Release
+## Making a Release
 
 To make a release, follow these steps:
 
