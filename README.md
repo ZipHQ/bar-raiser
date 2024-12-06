@@ -106,7 +106,7 @@ To execute the test suite, run:
 pdm run pytest
 ```
 
-## Contributing
+### Contributing
 
 1. Fork the repository.
 2. Create a new branch (`git checkout -b feature-branch`).
@@ -115,13 +115,13 @@ pdm run pytest
 5. Push to the branch (`git push origin feature-branch`).
 6. Open a pull request.
 
-## Coding Standards
+### Coding Standards
 
 - Follow the existing code style.
 - Write unit tests for new features.
 - Ensure all tests pass before submitting a pull request.
 
-## Making a Release
+### Making a Release
 
 To make a release, follow these steps:
 
@@ -132,3 +132,7 @@ To make a release, follow these steps:
    git push origin vX.Y.Z
    ```
 3. The [GitHub release workflow](https://github.com/ZipHQ/bar-raiser/actions/workflows/release.yml) will automatically build and publish the release based on the tagged commit.
+
+## Credits
+
+This project was developed collaboratively by the [Zip](https://ziphq.com/) Infra team. For insights into our work and ongoing updates, check out our tech blog. [tech blog](https://engineering.ziphq.com/).
