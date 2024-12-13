@@ -64,10 +64,6 @@ def get_git_repo() -> Repo:
     return Repo(".", search_parent_directories=True)
 
 
-def get_git_repo_path() -> Path:
-    return Path(__file__).parent.parent.parent.parent
-
-
 class Annotation(TypedDict):
     path: str
     start_line: int
