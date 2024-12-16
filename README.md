@@ -106,6 +106,11 @@ To execute the test suite, run:
 pdm run pytest
 ```
 
+### API Changes
+
+- **CI Interface**: The CI interface will be maintained for compatibility until the next major version release.
+- **Python API**: The Python API is still under development, and backward compatibility may change at any time.
+
 ### Contributing
 
 1. Fork the repository.

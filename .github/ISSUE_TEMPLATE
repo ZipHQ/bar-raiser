@@ -1,0 +1,33 @@
+## Issue Template
+
+### Description
+
+Please provide a clear and concise description of the issue. Include any relevant information such as error messages, screenshots, or logs.
+
+### Steps to Reproduce
+
+Please provide detailed steps to reproduce the issue. Include any code snippets or commands that are necessary to replicate the problem.
+
+1. Step 1
+2. Step 2
+3. Step 3
+
+### Expected Behavior
+
+Please describe what you expected to happen.
+
+### Actual Behavior
+
+Please describe what actually happened.
+
+### Environment
+
+Please provide details about your environment:
+
+- OS: [e.g., Windows, macOS, Linux]
+- Python Version: [e.g., 3.8.5]
+- Dependencies: [e.g., list of installed dependencies]
+
+### Additional Context
+
+Please provide any additional context that may be relevant to the issue.
