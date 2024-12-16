@@ -10,6 +10,7 @@ jobs:
   tagged-release:
     name: "Release by tagging"
     runs-on: "ubuntu-latest"
+    permissions: write-all
 
     steps:
       - uses: actions/checkout@v4
@@ -21,3 +22,4 @@ jobs:
           prerelease: false
           files: |
             dist/
+      - run: pdm publish
