@@ -1,0 +1,95 @@
+name: "Publish Files to GitHub Repository"
+description:
+  "Publishes local files to a target GitHub repository, ensuring updates are made at a defined
+  interval."
+inputs:
+  github-token:
+    description: "GitHub token that has the access to the target repo and the running repo"
+    required: true
+  github-repo:
+    description: "Repository name to upload (e.g., owner/repo)"
+    required: true
+  target-repo-path:
+    description: "Path to the directory in the target repository"
+    required: true
+  local-repo-path:
+    description: "Path to the directory in the local workspace"
+    required: true
+  git-user-name:
+    description: "Git user name"
+    required: true
+  git-user-email:
+    description: "Git user email"
+    required: true
+  interval:
+    description: "Interval in seconds to check if an update has already been made"
+    required: false
+    default: 86400
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.github-repo }}
+        path: upload-target-repo
+        ref: "master"
+        token: ${{ inputs.github-token }}
+    - name: Download last-run-date.txt from the previous workflow run
+      uses: dawidd6/action-download-artifact@v4
+      with:
+        github_token: ${{ inputs.github-token }}
+        workflow: ${{ env.GITHUB_WORKFLOW }}
+        name: last-run-date
+        path: last-run-date.txt
+        branch: master
+        if_no_artifact_found: ignore
+        search_artifacts: true
+        workflow_conclusion: ""
+    - name: Check if already run today
+      id: check-run-date
+      shell: bash
+      run: |
+        set -x
+        if [ -f last-run-date.txt/last-run-date.txt ]; then
+          last_run_date=$(cat last-run-date.txt/last-run-date.txt)
+          last_run_timestamp=$(date -d "$last_run_date" +%s)
+          current_timestamp=$(date +%s)
+          interval=${{ inputs.interval }}
+          if (( current_timestamp - last_run_timestamp < interval )); then
+            echo "Already run within the past $interval seconds."
+            echo "run-today=true" >> $GITHUB_OUTPUT
+          else
+            echo "Have not run within the past $interval seconds."
+            echo "run-today=false" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "Have no previous run history."
+          echo "run-today=false" >> $GITHUB_OUTPUT
+        fi
+    - name: Commit and Push reports
+      if: steps.check-run-date.outputs.run-today == 'false'
+      shell: bash
+      run: |
+        set -x
+        rm -rf upload-target-repo/${{ inputs.target-repo-path }}
+        cp -r ${{ inputs.local-repo-path }} upload-target-repo/${{ inputs.target-repo-path }}
+        cd upload-target-repo/
+        git config --global user.email "${{ inputs.git-user-email }}"
+        git config --global user.name "${{ inputs.git-user-name }}"
+        git config --unset http.https://github.com/.extraheader
+        git remote set-url origin https://$CUSTOM_GH_TOKEN@github.com/${{ inputs.github-repo }}.git
+        git status
+        git add -u
+        git add ${{ inputs.target-repo-path }}
+        git commit -m "Update ${{ inputs.target-repo-path }} reports from $GITHUB_REPOSITORY $GITHUB_SHA"
+        git push origin master
+        rm -rf ../last-run-date.txt
+        date +%Y-%m-%dT%H:%M:%S > ../last-run-date.txt
+      env:
+        CUSTOM_GH_TOKEN: ${{ inputs.github-token }}
+    - name: Upload last run date
+      uses: actions/upload-artifact@v4
+      with:
+        name: last-run-date
+        path: last-run-date.txt
+        retention-days: 7
