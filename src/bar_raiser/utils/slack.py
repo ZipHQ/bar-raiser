@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from json import loads
+from logging import getLogger
 from os import environ
 from typing import TYPE_CHECKING
 
@@ -13,10 +14,16 @@ if TYPE_CHECKING:
 
     from github.CheckRun import CheckRun
 
+logger = getLogger(__name__)
 
-def post_a_slack_message(channel: str, text: str):
+
+def post_a_slack_message(
+    channel: str, text: str, icon_url: str | None = None, username: str | None = None
+):
     client = WebClient(token=environ["SLACK_BOT_TOKEN"])
-    client.chat_postMessage(channel=channel, text=text)  # pyright: ignore[reportUnknownMemberType]
+    client.chat_postMessage(  # pyright: ignore[reportUnknownMemberType]
+        channel=channel, text=text, icon_url=icon_url, username=username
+    )
 
 
 def get_slack_user_id_from_github_login(
@@ -25,7 +32,9 @@ def get_slack_user_id_from_github_login(
     return loads(mapping_path.read_text()).get(github_login, None)
 
 
-def dm_on_check_failure(checks: list[CheckRun], mapping_path: Path):
+def dm_on_check_failure(
+    checks: list[CheckRun], mapping_path: Path, message: str | None = None
+):
     pull = get_pull_request()
 
     if pull and not pull.draft:
@@ -38,7 +47,13 @@ def dm_on_check_failure(checks: list[CheckRun], mapping_path: Path):
             ]
             if failed_checks:
                 check_urls = " ".join(check.html_url for check in failed_checks)
+                base_message = f"Github check `{failed_checks[0].name}` failed on <{pull.html_url}|PR-{pull.number}>: {check_urls}"
+                slack_message = (
+                    f"{message}\n\n{base_message}" if message else base_message
+                )
                 post_a_slack_message(
                     channel=user_id,
-                    text=f"Github check `{failed_checks[0].name}` failed on <{pull.html_url}|PR-{pull.number}>: {check_urls}",
+                    text=slack_message,
                 )
+    else:
+        logger.info("No pull request found.")
