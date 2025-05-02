@@ -4,7 +4,7 @@ from json import loads
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
-from bar_raiser.utils.check import create_arg_parser
+from bar_raiser.utils.check import create_arg_parser_with_slack_dm_on_failure
 from bar_raiser.utils.github import (
     Annotation,
     create_check_run,
@@ -69,7 +69,7 @@ def get_summary(pytest_report_json: PytestReportJson) -> str:
 
 
 def main():
-    parser = create_arg_parser()
+    parser = create_arg_parser_with_slack_dm_on_failure()
     parser.add_argument(
         "pytest_json_report",
         type=Path,

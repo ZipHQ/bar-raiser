@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from bar_raiser.utils.check import (
     CheckPattern,
-    create_arg_parser,
+    create_arg_parser_with_slack_dm_on_failure,
     get_annotations_and_actions,
 )
 from bar_raiser.utils.github import (
@@ -59,7 +59,7 @@ RUFF_CHECK_PATTERNS = [CANNOT_PARSE_PATTERN, CHECK_ERROR_PATTERN, FIXABLE_PATTER
 
 def main() -> None:
     initialize_logging()
-    args = create_arg_parser().parse_args()
+    args = create_arg_parser_with_slack_dm_on_failure().parse_args()
     git_repo = get_git_repo()
     annotations: list[Annotation] = []
     actions: list[Action] = []

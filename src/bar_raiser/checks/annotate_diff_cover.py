@@ -6,7 +6,7 @@ from operator import itemgetter
 from pathlib import Path
 from typing import Literal, TypedDict
 
-from bar_raiser.utils.check import create_arg_parser
+from bar_raiser.utils.check import create_arg_parser_with_slack_dm_on_failure
 from bar_raiser.utils.github import (
     Annotation,
     create_check_run,
@@ -75,7 +75,7 @@ CHECK_NAME = "python-diff-cover-report"
 
 
 def main():
-    parser = create_arg_parser()
+    parser = create_arg_parser_with_slack_dm_on_failure()
     parser.add_argument(
         "diff_cover_json_report",
         type=Path,

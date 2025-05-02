@@ -3,7 +3,7 @@ from __future__ import annotations
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-from bar_raiser.utils.check import create_arg_parser
+from bar_raiser.utils.check import create_arg_parser_with_slack_dm_on_failure
 from bar_raiser.utils.github import (
     create_check_run,
     get_github_repo,
@@ -29,7 +29,7 @@ def contains_merge_commit(commits: PaginatedList[Commit]) -> bool:
 
 
 def main():
-    parser = create_arg_parser()
+    parser = create_arg_parser_with_slack_dm_on_failure()
     args = parser.parse_args()
     repo = get_github_repo()
     pull_request = get_pull_request()

@@ -70,7 +70,7 @@ def get_annotations_and_actions(
     return annotations, action
 
 
-def create_arg_parser() -> ArgumentParser:
+def create_arg_parser_with_slack_dm_on_failure() -> ArgumentParser:
     parser = ArgumentParser(
         description="Run checks and optionally send Slack DMs on failure."
     )

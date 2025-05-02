@@ -173,7 +173,9 @@ def test_get_summary() -> None:
     new_callable=mock_open,
     read_data='{"total_percent_covered": 70, "src_stats": {}}',
 )
-@patch("bar_raiser.checks.annotate_diff_cover.create_arg_parser")
+@patch(
+    "bar_raiser.checks.annotate_diff_cover.create_arg_parser_with_slack_dm_on_failure"
+)
 def test_main(
     mock_create_arg_parser: Mock,
     mock_open: Mock,

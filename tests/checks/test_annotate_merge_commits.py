@@ -51,7 +51,9 @@ def test_contains_merge_commit_false() -> None:
     assert result is False
 
 
-@patch("bar_raiser.checks.annotate_merge_commits.create_arg_parser")
+@patch(
+    "bar_raiser.checks.annotate_merge_commits.create_arg_parser_with_slack_dm_on_failure"
+)
 @patch("bar_raiser.checks.annotate_merge_commits.get_github_repo")
 @patch("bar_raiser.checks.annotate_merge_commits.get_pull_request")
 @patch("bar_raiser.checks.annotate_merge_commits.get_head_sha")
@@ -115,7 +117,9 @@ def test_amc_with_merge_commits(  # noqa: PLR0917
     )
 
 
-@patch("bar_raiser.checks.annotate_merge_commits.create_arg_parser")
+@patch(
+    "bar_raiser.checks.annotate_merge_commits.create_arg_parser_with_slack_dm_on_failure"
+)
 @patch("bar_raiser.checks.annotate_merge_commits.get_github_repo")
 @patch("bar_raiser.checks.annotate_merge_commits.get_pull_request")
 @patch("bar_raiser.checks.annotate_merge_commits.get_head_sha")
@@ -168,7 +172,9 @@ def test_amc_without_merge_commits(  # noqa: PLR0917
     mock_dm_on_check_failure.assert_not_called()
 
 
-@patch("bar_raiser.checks.annotate_merge_commits.create_arg_parser")
+@patch(
+    "bar_raiser.checks.annotate_merge_commits.create_arg_parser_with_slack_dm_on_failure"
+)
 @patch("bar_raiser.checks.annotate_merge_commits.get_github_repo")
 @patch("bar_raiser.checks.annotate_merge_commits.get_pull_request")
 @patch("bar_raiser.checks.annotate_merge_commits.logger.info")

@@ -6,7 +6,7 @@ from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from sys import exit
 
-from bar_raiser.utils.check import create_arg_parser
+from bar_raiser.utils.check import create_arg_parser_with_slack_dm_on_failure
 from bar_raiser.utils.github import (
     Action,
     Annotation,
@@ -57,7 +57,7 @@ def get_annotations_and_actions_for_pyright_check(
 
 def main() -> None:
     initialize_logging()
-    args = create_arg_parser().parse_args()
+    args = create_arg_parser_with_slack_dm_on_failure().parse_args()
     git_repo = get_git_repo()
     annotations: list[Annotation] = []
     actions: list[Action] = []
