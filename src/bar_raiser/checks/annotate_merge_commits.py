@@ -29,7 +29,6 @@ def contains_merge_commit(commits: PaginatedList[Commit]) -> bool:
 
 
 def main():
-    initialize_logging()
     parser = create_arg_parser()
     args = parser.parse_args()
     repo = get_github_repo()
@@ -76,4 +75,5 @@ def main():
 
 
 if __name__ == "__main__":
+    initialize_logging()
     main()
