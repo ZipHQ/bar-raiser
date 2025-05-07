@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from github.CheckRun import CheckRun
+    from slack.web.slack_response import SlackResponse
 
 logger = getLogger(__name__)
 
@@ -55,3 +56,18 @@ def dm_on_check_failure(
                 )
     else:
         logger.info("No pull request found.")
+
+
+def get_slack_user_icon_url_and_username(
+    user_id: str,
+) -> tuple[str, str] | tuple[None, None]:
+    client = WebClient(token=environ["SLACK_BOT_TOKEN"])
+    response: SlackResponse = client.users_info(user=user_id)  # pyright: ignore[reportUnknownMemberType,reportAssignmentType]
+    try:
+        if response["ok"]:
+            user_info = response["user"]  # pyright: ignore[reportUnknownVariableType]
+            if user_info:
+                return user_info["profile"]["image_72"], user_info["real_name"]  # pyright: ignore[reportUnknownVariableType]
+    except Exception:
+        logger.exception(f"Error getting slack user info for {user_id}.")
+    return None, None
