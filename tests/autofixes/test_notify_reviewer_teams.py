@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from github.Label import Label
 from github.PullRequest import PullRequest
 from github.Team import Team as GithubTeam
 
@@ -306,8 +307,9 @@ def test_main(mock_get_pull_request: MagicMock) -> None:
     mock_pull_request.labels = []
     mock_pull_request.draft = False
     mock_get_pull_request.return_value = mock_pull_request
-
-    mock_pull_request.labels = [MagicMock(name=LABEL_TO_REMOVE)]
+    mock_label = MagicMock(spec=Label)
+    mock_label.name = LABEL_TO_REMOVE
+    mock_pull_request.labels = [mock_label]
     with (
         patch(
             "bar_raiser.autofixes.notify_reviewer_teams.process_pull_request",

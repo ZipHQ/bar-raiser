@@ -120,9 +120,6 @@ def process_pull_request(  # noqa: PLR0917
         for requested_team_obj in team_requests_list:
             if isinstance(requested_team_obj, Team):
                 current_team_slug = requested_team_obj.slug
-                current_team_full_name = (
-                    f"@{requested_team_obj.organization.login}/{current_team_slug}"
-                )
 
                 if only_notify_team_slug:
                     if current_team_slug == only_notify_team_slug:
@@ -139,7 +136,7 @@ def process_pull_request(  # noqa: PLR0917
                         # Only process this team if it's the target
                     else:
                         logger.info(
-                            f"Skipping notification for team {current_team_full_name} as --only-notify-team is set to {only_notify_team_slug}."
+                            f"Skipping notification for team {current_team_slug} as --only-notify-team is set to {only_notify_team_slug}."
                         )
                 else:
                     # No specific team targeted, process all teams
@@ -224,7 +221,8 @@ def main() -> None:
 
     if comment:
         pull.create_issue_comment(body=comment)
-    pull.remove_from_labels(LABEL_TO_REMOVE)
+    if LABEL_TO_REMOVE in [label.name for label in pull.labels]:
+        pull.remove_from_labels(LABEL_TO_REMOVE)
 
 
 if __name__ == "__main__":
