@@ -102,6 +102,7 @@ def process_pull_request(  # noqa: PLR0917
     github_login_to_slack_ids_help_msg: str,
     github_team_to_slack_channels_path: Path,
     github_team_to_slack_channels_help_msg: str,
+    only_notify_team_slug: str | None,
 ) -> str:
     """Process all review requests for a pull request."""
     author_login = pull_request.user.login
@@ -113,23 +114,49 @@ def process_pull_request(  # noqa: PLR0917
         logger.error(comment)
         return comment
 
-    comment = ""
-    for requests in pull_request.get_review_requests():
-        for request in requests:
-            if isinstance(request, Team):
-                request_comment, _ = process_review_request(
-                    request,
-                    pull_request,
-                    slack_id,
-                    dry_run,
-                    github_team_to_slack_channels_path,
-                    github_team_to_slack_channels_help_msg,
-                )
-                comment += request_comment
+    accumulated_comments = ""
 
-    if len(comment) == 0:
+    for team_requests_list in pull_request.get_review_requests():  # noqa: PLR1702
+        for requested_team_obj in team_requests_list:
+            if isinstance(requested_team_obj, Team):
+                current_team_slug = requested_team_obj.slug
+                current_team_full_name = (
+                    f"@{requested_team_obj.organization.login}/{current_team_slug}"
+                )
+
+                if only_notify_team_slug:
+                    if current_team_slug == only_notify_team_slug:
+                        single_request_comment, _ = process_review_request(
+                            requested_team_obj,
+                            pull_request,
+                            slack_id,
+                            dry_run,
+                            github_team_to_slack_channels_path,
+                            github_team_to_slack_channels_help_msg,
+                        )
+                        if single_request_comment:
+                            accumulated_comments += single_request_comment
+                        # Only process this team if it's the target
+                    else:
+                        logger.info(
+                            f"Skipping notification for team {current_team_full_name} as --only-notify-team is set to {only_notify_team_slug}."
+                        )
+                else:
+                    # No specific team targeted, process all teams
+                    single_request_comment, _ = process_review_request(
+                        requested_team_obj,
+                        pull_request,
+                        slack_id,
+                        dry_run,
+                        github_team_to_slack_channels_path,
+                        github_team_to_slack_channels_help_msg,
+                    )
+                    if single_request_comment:
+                        accumulated_comments += single_request_comment
+
+    if len(accumulated_comments) == 0 and not only_notify_team_slug:
         return "No team review requests found."
-    return comment
+    return accumulated_comments
 
 
 def main() -> None:
@@ -166,6 +193,12 @@ def main() -> None:
         help="A help message for updating the github_team_to_slack_channels mapping file.",
         default="",
     )
+    parser.add_argument(
+        "--only-notify-team",
+        type=str,
+        help="Only send notification to the specific team slug if they are a requested reviewer.",
+        default=None,
+    )
     args = parser.parse_args()
     pull = get_pull_request()
     dry_run = args.dry_run
@@ -186,6 +219,7 @@ def main() -> None:
             args.github_login_to_slack_ids_help_msg,
             args.github_team_to_slack_channels,
             args.github_team_to_slack_channels_help_msg,
+            args.only_notify_team,
         )
 
     if comment:
