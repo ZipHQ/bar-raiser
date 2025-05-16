@@ -62,7 +62,7 @@ def get_slack_user_icon_url_and_username(
     user_id: str,
 ) -> tuple[str, str] | tuple[None, None]:
     client = WebClient(token=environ["SLACK_BOT_TOKEN"])
-    response: SlackResponse = client.users_info(user=user_id)  # pyright: ignore[reportUnknownMemberType,reportAssignmentType]
+    response: SlackResponse = client.users_info(user=user_id)  # pyright: ignore[reportUnknownMemberType,reportAssignmentType,reportUnknownVariableType]
     try:
         if response["ok"]:
             user_info = response["user"]  # pyright: ignore[reportUnknownVariableType]
