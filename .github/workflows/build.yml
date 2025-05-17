@@ -51,3 +51,18 @@ jobs:
           if [ -f pytest-exit-code.txt ]; then
             exit $(cat pytest-exit-code.txt)
           fi
+
+  run-analyzers:
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 100
+      - uses: ./.github/actions/setup
+      - run: pdm run python3 -m bar_raiser.tech_debt_framework.run_analyzers .
+        env:
+          APP_ID: ${{ secrets.BAR_RAISER_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.BAR_RAISER_PRIVATE_KEY }}
+          PULL_NUMBER: ${{ github.event.pull_request.number }}
+          SLACK_BOT_TOKEN: ${{ secrets.BAR_RAISER_SLACK_BOT_TOKEN }}
