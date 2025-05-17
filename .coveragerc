@@ -1,0 +1,2 @@
+[report]
+omit = src/bar_raiser/tech_debt_framework/*
