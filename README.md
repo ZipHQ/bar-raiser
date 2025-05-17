@@ -4,6 +4,9 @@ Bar-Raiser is a cutting-edge framework designed to help engineering teams tackle
 
 ## Main Features
 
+### Tech Debt Framework
+[Slides](https://www.slideshare.net/slideshow/pycon-us-2025-scaling-the-mountain_-a-framework-for-tackling-large-scale-tech-debt-pdf/279239073) PyCon US 2025 [Talk](https://us.pycon.org/2025/schedule/presentation/2/): Scaling the Mountain: A Framework for Tackling Large-Scale Tech Debt
+
 ### Create GitHub Checks for Enhanced Developer Experiences
 
 - **Simplified Results**: View linter or test results in a dedicated check page, eliminating the need to sift through console output.
