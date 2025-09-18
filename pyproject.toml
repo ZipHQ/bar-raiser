@@ -20,6 +20,9 @@ readme = "README.md"
 license = {text = "BSD-3-Clause"}
 dynamic = ["version"]
 
+[project.urls]
+homepage = "https://github.com/ZipHQ/bar-raiser"
+
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
