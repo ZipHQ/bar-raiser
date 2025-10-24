@@ -79,26 +79,29 @@ def test_create_check_run_with_no_annotations() -> None:
     assert mock_repo.create_check_run.call_count == 1
 
 
-def test_commit_changes() -> None:
+def test_commit_changes(tmp_path) -> None:
     mock_repo = MagicMock(spec=Repository)
     # fmt: off
     mock_repo.create_git_blob.return_value = MagicMock(
         sha="blob_sha"
     )
     # fmt: on
-    with patch("bar_raiser.utils.github.open", mock_open(read_data="file content")):
-        commit_changes(mock_repo, "a_branch", "a_sha", ["a.py"], "a_commit_message")
+
+    # Create a real temporary file
+    test_file = tmp_path / "a.py"
+    test_file.write_text("file content", encoding="utf-8")
+
+    with patch("bar_raiser.utils.github.InputGitTreeElement") as mock_element:
+        commit_changes(mock_repo, "a_branch", "a_sha", [str(test_file)], "a_commit_message")
 
     # Verify blob was created with correct content
     mock_repo.create_git_blob.assert_called_once_with("file content", "utf-8")
 
-    # Verify tree was created with correct element
-    tree_elements = mock_repo.create_git_tree.call_args[0][0]
-    assert len(tree_elements) == 1
-    assert tree_elements[0].path == "a.py"
-    assert tree_elements[0].mode == "100644"
-    assert tree_elements[0].type == "blob"
-    assert tree_elements[0].sha == "blob_sha"
+    # Verify InputGitTreeElement was constructed with correct arguments
+    mock_element.assert_called_once_with(str(test_file), "100644", "blob", sha="blob_sha")
+
+    # Verify tree was created with the element
+    assert mock_repo.create_git_tree.call_count == 1
 
     # Verify commit was created
     assert mock_repo.create_git_commit.call_count == 1
