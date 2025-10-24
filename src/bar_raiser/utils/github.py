@@ -120,7 +120,6 @@ def commit_changes(
     num_batches = len(paths) // batch_size + 1
     count = 0
     cwd = os.getcwd()
-    chdir(Path(__file__).parent.parent.parent.parent)
     while paths:
         elements: list[InputGitTreeElement] = []
         for path in paths[:batch_size]:
@@ -140,7 +139,6 @@ def commit_changes(
         sha = new_commit.sha
         paths = paths[batch_size:]
         count += 1
-    chdir(cwd)
 
 
 def get_updated_paths(pull: PullRequest) -> list[str]:
