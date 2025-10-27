@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from os import chdir, environ, getcwd
+from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
 from git import Diff
@@ -79,7 +80,7 @@ def test_create_check_run_with_no_annotations() -> None:
     assert mock_repo.create_check_run.call_count == 1
 
 
-def test_commit_changes(tmp_path) -> None:
+def test_commit_changes(tmp_path: Path) -> None:
     mock_repo = MagicMock(spec=Repository)
     # fmt: off
     mock_repo.create_git_blob.return_value = MagicMock(
