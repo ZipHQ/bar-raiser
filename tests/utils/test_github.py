@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from os import environ
+from os import chdir, environ, getcwd
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, mock_open, patch
 
 from git import Diff
@@ -9,6 +10,9 @@ from github.IssueComment import IssueComment
 from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
 from github.Repository import Repository
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from bar_raiser.utils.github import (
     Annotation,
@@ -79,15 +83,39 @@ def test_create_check_run_with_no_annotations() -> None:
     assert mock_repo.create_check_run.call_count == 1
 
 
-def test_commit_changes() -> None:
+def test_commit_changes(tmp_path: Path) -> None:
     mock_repo = MagicMock(spec=Repository)
     # fmt: off
     mock_repo.create_git_blob.return_value = MagicMock(
-        sha="a_sha"
+        sha="blob_sha"
     )
     # fmt: on
-    with patch("bar_raiser.utils.github.open", mock_open(read_data="")):
-        commit_changes(mock_repo, "a_branch", "a_sha", ["a.py"], "a_commit_message")
+
+    # Create a real temporary file
+    test_file = tmp_path / "a.py"
+    test_file.write_text("file content", encoding="utf-8")
+
+    # Change dir to test relative dir access
+    cwd = getcwd()
+    chdir(tmp_path)
+    with patch("bar_raiser.utils.github.InputGitTreeElement") as mock_element:
+        commit_changes(
+            mock_repo, "a_branch", "a_sha", [test_file.name], "a_commit_message"
+        )
+    chdir(cwd)
+
+    # Verify blob was created with correct content
+    mock_repo.create_git_blob.assert_called_once_with("file content", "utf-8")
+
+    # Verify InputGitTreeElement was constructed with correct arguments
+    mock_element.assert_called_once_with(
+        test_file.name, "100644", "blob", sha="blob_sha"
+    )
+
+    # Verify tree was created with the element
+    assert mock_repo.create_git_tree.call_count == 1
+
+    # Verify commit was created
     assert mock_repo.create_git_commit.call_count == 1
     mock_repo.reset_mock()
 
