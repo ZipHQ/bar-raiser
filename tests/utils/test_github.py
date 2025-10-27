@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from os import chdir, getcwd, environ
+from os import chdir, environ, getcwd
 from unittest.mock import MagicMock, mock_open, patch
 
 from git import Diff
@@ -95,14 +95,18 @@ def test_commit_changes(tmp_path) -> None:
     cwd = getcwd()
     chdir(tmp_path)
     with patch("bar_raiser.utils.github.InputGitTreeElement") as mock_element:
-        commit_changes(mock_repo, "a_branch", "a_sha", [test_file.name], "a_commit_message")
+        commit_changes(
+            mock_repo, "a_branch", "a_sha", [test_file.name], "a_commit_message"
+        )
     chdir(cwd)
 
     # Verify blob was created with correct content
     mock_repo.create_git_blob.assert_called_once_with("file content", "utf-8")
 
     # Verify InputGitTreeElement was constructed with correct arguments
-    mock_element.assert_called_once_with(test_file.name, "100644", "blob", sha="blob_sha")
+    mock_element.assert_called_once_with(
+        test_file.name, "100644", "blob", sha="blob_sha"
+    )
 
     # Verify tree was created with the element
     assert mock_repo.create_git_tree.call_count == 1

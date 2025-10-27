@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from enum import StrEnum
 from logging import INFO, basicConfig, getLogger
-from os import chdir, environ
+from os import environ
 from pathlib import Path
 from subprocess import check_output
 from sys import stdout
@@ -119,7 +119,6 @@ def commit_changes(
     batch_size = 200
     num_batches = len(paths) // batch_size + 1
     count = 0
-    cwd = os.getcwd()
     while paths:
         elements: list[InputGitTreeElement] = []
         for path in paths[:batch_size]:
