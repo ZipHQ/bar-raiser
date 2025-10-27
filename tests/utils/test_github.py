@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from os import chdir, environ, getcwd
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, mock_open, patch
 
 from git import Diff
@@ -10,6 +10,9 @@ from github.IssueComment import IssueComment
 from github.NamedUser import NamedUser
 from github.PullRequest import PullRequest
 from github.Repository import Repository
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from bar_raiser.utils.github import (
     Annotation,
