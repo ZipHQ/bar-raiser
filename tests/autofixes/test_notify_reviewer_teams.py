@@ -43,12 +43,44 @@ def test_create_slack_message(mock_pull_request: PullRequest) -> None:
         channel="test-channel",
         slack_id="U123",
         pull_request=mock_pull_request,
+        reviewers=[],
     )
     message = create_slack_message(review_request)
     assert "U123" in message
     assert "PR-1" in message
     assert "Test PR" in message
     assert "test-team" in message
+    assert "Assigned reviewers: none, please assign" in message
+
+
+def test_create_slack_message_with_reviewers(mock_pull_request: PullRequest) -> None:
+    review_request = ReviewRequest(
+        team="@Greenbax/test-team",
+        channel="test-channel",
+        slack_id="U123",
+        pull_request=mock_pull_request,
+        reviewers=["U_ALICE", "U_BOB"],
+    )
+    message = create_slack_message(review_request)
+    assert "U123" in message
+    assert "PR-1" in message
+    assert "Test PR" in message
+    assert "test-team" in message
+    assert "Assigned reviewers: <@U_ALICE>, <@U_BOB>" in message
+
+
+def test_create_slack_message_with_single_reviewer(
+    mock_pull_request: PullRequest,
+) -> None:
+    review_request = ReviewRequest(
+        team="@Greenbax/test-team",
+        channel="test-channel",
+        slack_id="U123",
+        pull_request=mock_pull_request,
+        reviewers=["U_CHARLIE"],
+    )
+    message = create_slack_message(review_request)
+    assert "Assigned reviewers: <@U_CHARLIE>" in message
 
 
 @patch(
@@ -62,6 +94,7 @@ def test_process_review_request_success(
     mock_pull_request: PullRequest,
 ) -> None:
     mock_get_user_info.return_value = ("icon_url", "username")
+    mock_team.get_members = MagicMock(return_value=[])  # type: ignore[method-assign]
 
     with patch(
         "pathlib.Path.read_text",
@@ -74,6 +107,8 @@ def test_process_review_request_success(
             dry_run="test-channel",
             github_team_to_slack_channels_path=Path("test-path"),
             github_team_to_slack_channels_help_msg="",
+            individual_reviewers=[],
+            github_login_to_slack_ids_path=Path("test-path-login"),
         )
     assert success
     assert "test-channel" in comment
@@ -91,6 +126,7 @@ def test_process_review_request_none_channel(
     mock_pull_request: PullRequest,
 ) -> None:
     mock_get_user_info.return_value = ("icon_url", "username")
+    mock_team.get_members = MagicMock(return_value=[])  # type: ignore[method-assign]
 
     with patch(
         "pathlib.Path.read_text",
@@ -103,6 +139,8 @@ def test_process_review_request_none_channel(
             dry_run="test-channel",
             github_team_to_slack_channels_path=Path("test-path"),
             github_team_to_slack_channels_help_msg="",
+            individual_reviewers=[],
+            github_login_to_slack_ids_path=Path("test-path-login"),
         )
     assert not success
     assert "Slack channel not found" in comment
@@ -120,6 +158,7 @@ def test_process_review_request_dry_run(
     mock_pull_request: PullRequest,
 ) -> None:
     mock_get_user_info.return_value = ("icon_url", "username")
+    mock_team.get_members = MagicMock(return_value=[])  # type: ignore[method-assign]
 
     with patch(
         "pathlib.Path.read_text",
@@ -132,10 +171,193 @@ def test_process_review_request_dry_run(
             dry_run="test-channel",
             github_team_to_slack_channels_path=Path("test-path"),
             github_team_to_slack_channels_help_msg="",
+            individual_reviewers=[],
+            github_login_to_slack_ids_path=Path("test-path-login"),
         )
     assert success
     assert "test-team" in comment
     mock_post_message.assert_called_once()
+
+
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")
+@patch(
+    "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
+)
+@patch("bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message")
+def test_process_review_request_filters_reviewers_by_team(
+    mock_post_message: MagicMock,
+    mock_get_user_info: MagicMock,
+    mock_get_slack_id: MagicMock,
+    mock_team: GithubTeam,
+    mock_pull_request: PullRequest,
+) -> None:
+    """Test that only reviewers who are members of the team are included."""
+    mock_get_user_info.return_value = ("icon_url", "username")
+
+    # Create mock team members
+    member1 = MagicMock()
+    member1.login = "alice"
+    member2 = MagicMock()
+    member2.login = "bob"
+
+    mock_team.get_members = MagicMock(return_value=[member1, member2])  # type: ignore[method-assign]
+
+    # alice and bob are team members, charlie is not
+    individual_reviewers = ["alice", "bob", "charlie"]
+
+    # Mock Slack ID lookups - return Slack IDs for team members
+    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
+        mapping = {
+            "@Greenbax/test-team": "test-channel",
+            "alice": "U_ALICE",
+            "bob": "U_BOB",
+            "charlie": "U_CHARLIE",
+        }
+        return mapping.get(github_login)
+
+    mock_get_slack_id.side_effect = slack_id_lookup
+
+    comment, success = process_review_request(
+        mock_team,
+        mock_pull_request,
+        "U123",
+        dry_run="test-channel",
+        github_team_to_slack_channels_path=Path("test-path"),
+        github_team_to_slack_channels_help_msg="",
+        individual_reviewers=individual_reviewers,
+        github_login_to_slack_ids_path=Path("test-path-login"),
+    )
+
+    assert success
+    assert "test-team" in comment
+    mock_post_message.assert_called_once()
+
+    # Check that the message includes only team members (alice and bob) as Slack mentions
+    call_args = mock_post_message.call_args
+    message_text = call_args.kwargs["text"]
+    assert "<@U_ALICE>" in message_text
+    assert "<@U_BOB>" in message_text
+    assert "U_CHARLIE" not in message_text
+    assert "Assigned reviewers" in message_text
+
+
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")
+@patch(
+    "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
+)
+@patch("bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message")
+def test_process_review_request_no_matching_team_members(
+    mock_post_message: MagicMock,
+    mock_get_user_info: MagicMock,
+    mock_get_slack_id: MagicMock,
+    mock_team: GithubTeam,
+    mock_pull_request: PullRequest,
+) -> None:
+    """Test that when no reviewers match team membership, no reviewers are shown."""
+    mock_get_user_info.return_value = ("icon_url", "username")
+
+    # Create mock team members
+    member1 = MagicMock()
+    member1.login = "alice"
+    member2 = MagicMock()
+    member2.login = "bob"
+
+    mock_team.get_members = MagicMock(return_value=[member1, member2])  # type: ignore[method-assign]
+
+    # charlie and david are NOT team members
+    individual_reviewers = ["charlie", "david"]
+
+    # Mock Slack ID lookups
+    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
+        mapping = {
+            "@Greenbax/test-team": "test-channel",
+            "charlie": "U_CHARLIE",
+            "david": "U_DAVID",
+        }
+        return mapping.get(github_login)
+
+    mock_get_slack_id.side_effect = slack_id_lookup
+
+    _comment, success = process_review_request(
+        mock_team,
+        mock_pull_request,
+        "U123",
+        dry_run="test-channel",
+        github_team_to_slack_channels_path=Path("test-path"),
+        github_team_to_slack_channels_help_msg="",
+        individual_reviewers=individual_reviewers,
+        github_login_to_slack_ids_path=Path("test-path-login"),
+    )
+
+    assert success
+    mock_post_message.assert_called_once()
+
+    # Check that the message shows no reviewers assigned
+    call_args = mock_post_message.call_args
+    message_text = call_args.kwargs["text"]
+    assert "Assigned reviewers: none, please assign" in message_text
+    assert "U_CHARLIE" not in message_text
+    assert "U_DAVID" not in message_text
+
+
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")
+@patch(
+    "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
+)
+@patch("bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message")
+def test_process_review_request_with_team_member_reviewers(
+    mock_post_message: MagicMock,
+    mock_get_user_info: MagicMock,
+    mock_get_slack_id: MagicMock,
+    mock_team: GithubTeam,
+    mock_pull_request: PullRequest,
+) -> None:
+    """Test that all matching team member reviewers are included."""
+    mock_get_user_info.return_value = ("icon_url", "username")
+
+    # Create mock team members
+    member1 = MagicMock()
+    member1.login = "alice"
+    member2 = MagicMock()
+    member2.login = "bob"
+    member3 = MagicMock()
+    member3.login = "charlie"
+
+    mock_team.get_members = MagicMock(return_value=[member1, member2, member3])  # type: ignore[method-assign]
+
+    # All three are team members
+    individual_reviewers = ["alice", "bob", "charlie"]
+
+    # Mock Slack ID lookups
+    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
+        mapping = {
+            "@Greenbax/test-team": "test-channel",
+            "alice": "U_ALICE",
+            "bob": "U_BOB",
+            "charlie": "U_CHARLIE",
+        }
+        return mapping.get(github_login)
+
+    mock_get_slack_id.side_effect = slack_id_lookup
+
+    _comment, success = process_review_request(
+        mock_team,
+        mock_pull_request,
+        "U123",
+        dry_run="test-channel",
+        github_team_to_slack_channels_path=Path("test-path"),
+        github_team_to_slack_channels_help_msg="",
+        individual_reviewers=individual_reviewers,
+        github_login_to_slack_ids_path=Path("test-path-login"),
+    )
+
+    assert success
+    mock_post_message.assert_called_once()
+
+    # Check that all three team members are in the message as Slack mentions
+    call_args = mock_post_message.call_args
+    message_text = call_args.kwargs["text"]
+    assert "Assigned reviewers: <@U_ALICE>, <@U_BOB>, <@U_CHARLIE>" in message_text
 
 
 @patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")
