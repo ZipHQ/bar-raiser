@@ -35,15 +35,24 @@ class ReviewRequest:
     channel: str | None
     slack_id: str
     pull_request: PullRequest
+    reviewers: list[str]
 
 
 def create_slack_message(review_request: ReviewRequest) -> str:
     """Create a Slack message for a review request."""
+    reviewer_text = ""
+    if review_request.reviewers:
+        # Format reviewers as Slack mentions
+        reviewer_mentions = ", ".join([
+            f"<@{reviewer}>" for reviewer in review_request.reviewers
+        ])
+        reviewer_text = f" Assigned reviewers: {reviewer_mentions}."
+
     return (
         f"Hi team, Could we please get reviews on <@{review_request.slack_id}>'s "
         f"<{review_request.pull_request.html_url}|PR-{review_request.pull_request.number}> "
         f"({review_request.pull_request.title})? A review from the *{review_request.team.split('/')[-1]}* "
-        "team is required. Thanks! 🙏"
+        f"team is required.{reviewer_text} Thanks! 🙏"
     )
 
 
@@ -54,6 +63,8 @@ def process_review_request(  # noqa: PLR0917
     dry_run: str,
     github_team_to_slack_channels_path: Path,
     github_team_to_slack_channels_help_msg: str,
+    individual_reviewers: list[str],
+    github_login_to_slack_ids_path: Path,
 ) -> tuple[str, bool]:
     """Process a single review request and return the comment and success status."""
     team = f"@{request.organization.login}/{request.slug}"
@@ -73,8 +84,27 @@ def process_review_request(  # noqa: PLR0917
         channel = dry_run
 
     if channel:
+        # Filter reviewers to only include members of this team
+        team_members = {member.login for member in request.get_members()}
+        filtered_github_reviewers = [
+            r for r in individual_reviewers if r in team_members
+        ]
+
+        # Convert GitHub logins to Slack IDs
+        reviewer_slack_ids: list[str] = []
+        for github_login in filtered_github_reviewers:
+            reviewer_slack_id = get_slack_channel_from_mapping_path(
+                github_login, github_login_to_slack_ids_path
+            )
+            if reviewer_slack_id:
+                reviewer_slack_ids.append(reviewer_slack_id)
+
         review_request = ReviewRequest(
-            team=team, channel=channel, slack_id=slack_id, pull_request=pull_request
+            team=team,
+            channel=channel,
+            slack_id=slack_id,
+            pull_request=pull_request,
+            reviewers=reviewer_slack_ids,
         )
         message = create_slack_message(review_request)
         icon_url, username = get_slack_user_icon_url_and_username(slack_id)
@@ -116,7 +146,18 @@ def process_pull_request(  # noqa: PLR0917
 
     accumulated_comments = ""
 
-    for team_requests_list in pull_request.get_review_requests():  # noqa: PLR1702
+    # Get review requests - returns (teams, users)
+    review_requests = pull_request.get_review_requests()
+
+    # Collect individual reviewer logins
+    individual_reviewers = [
+        item.login
+        for item_list in review_requests
+        for item in item_list
+        if not isinstance(item, Team)
+    ]
+
+    for team_requests_list in review_requests:  # noqa: PLR1702
         for requested_team_obj in team_requests_list:
             if isinstance(requested_team_obj, Team):
                 current_team_slug = requested_team_obj.slug
@@ -130,6 +171,8 @@ def process_pull_request(  # noqa: PLR0917
                             dry_run,
                             github_team_to_slack_channels_path,
                             github_team_to_slack_channels_help_msg,
+                            individual_reviewers,
+                            github_login_to_slack_ids_path,
                         )
                         if single_request_comment:
                             accumulated_comments += single_request_comment
@@ -147,6 +190,8 @@ def process_pull_request(  # noqa: PLR0917
                         dry_run,
                         github_team_to_slack_channels_path,
                         github_team_to_slack_channels_help_msg,
+                        individual_reviewers,
+                        github_login_to_slack_ids_path,
                     )
                     if single_request_comment:
                         accumulated_comments += single_request_comment
