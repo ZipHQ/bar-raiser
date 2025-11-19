@@ -50,7 +50,7 @@ def test_create_slack_message(mock_pull_request: PullRequest) -> None:
     assert "PR-1" in message
     assert "Test PR" in message
     assert "test-team" in message
-    assert "Assigned reviewers: none, please assign" in message
+    assert "(assigned to none)" in message
 
 
 def test_create_slack_message_with_reviewers(mock_pull_request: PullRequest) -> None:
@@ -66,7 +66,7 @@ def test_create_slack_message_with_reviewers(mock_pull_request: PullRequest) -> 
     assert "PR-1" in message
     assert "Test PR" in message
     assert "test-team" in message
-    assert "Assigned reviewers: <@U_ALICE>, <@U_BOB>" in message
+    assert "(assigned to <@U_ALICE>, <@U_BOB>)" in message
 
 
 def test_create_slack_message_with_single_reviewer(
@@ -80,7 +80,7 @@ def test_create_slack_message_with_single_reviewer(
         reviewers=["U_CHARLIE"],
     )
     message = create_slack_message(review_request)
-    assert "Assigned reviewers: <@U_CHARLIE>" in message
+    assert "(assigned to <@U_CHARLIE>)" in message
 
 
 @patch(
@@ -238,7 +238,7 @@ def test_process_review_request_filters_reviewers_by_team(
     assert "<@U_ALICE>" in message_text
     assert "<@U_BOB>" in message_text
     assert "U_CHARLIE" not in message_text
-    assert "Assigned reviewers" in message_text
+    assert "(assigned to <@U_ALICE>, <@U_BOB>)" in message_text
 
 
 @patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")
@@ -295,7 +295,7 @@ def test_process_review_request_no_matching_team_members(
     # Check that the message shows no reviewers assigned
     call_args = mock_post_message.call_args
     message_text = call_args.kwargs["text"]
-    assert "Assigned reviewers: none, please assign" in message_text
+    assert "(assigned to none) is required" in message_text
     assert "U_CHARLIE" not in message_text
     assert "U_DAVID" not in message_text
 
@@ -357,7 +357,9 @@ def test_process_review_request_with_team_member_reviewers(
     # Check that all three team members are in the message as Slack mentions
     call_args = mock_post_message.call_args
     message_text = call_args.kwargs["text"]
-    assert "Assigned reviewers: <@U_ALICE>, <@U_BOB>, <@U_CHARLIE>" in message_text
+    assert (
+        "(assigned to <@U_ALICE>, <@U_BOB>, <@U_CHARLIE>) is required" in message_text
+    )
 
 
 @patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")

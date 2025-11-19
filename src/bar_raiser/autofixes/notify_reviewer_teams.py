@@ -44,15 +44,15 @@ def create_slack_message(review_request: ReviewRequest) -> str:
         reviewer_mentions = ", ".join([
             f"<@{reviewer}>" for reviewer in review_request.reviewers
         ])
-        reviewer_text = f" Assigned reviewers: {reviewer_mentions}."
+        reviewer_text = f"{reviewer_mentions}"
     else:
-        reviewer_text = " Assigned reviewers: none, please assign."
+        reviewer_text = "none"
 
     return (
         f"Hi team, Could we please get reviews on <@{review_request.slack_id}>'s "
         f"<{review_request.pull_request.html_url}|PR-{review_request.pull_request.number}> "
         f"({review_request.pull_request.title})? A review from the *{review_request.team.split('/')[-1]}* "
-        f"team is required.{reviewer_text} Thanks! 🙏"
+        f"team (assigned to {reviewer_text}) is required. Thanks! 🙏"
     )
 
 
