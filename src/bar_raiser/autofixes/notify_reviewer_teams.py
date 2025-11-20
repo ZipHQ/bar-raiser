@@ -48,11 +48,8 @@ def create_slack_message(review_request: ReviewRequest) -> str:
         if review_request.is_random_assignment:
             # Randomly assigned reviewers: "maybe @alice or @bob"
             reviewer_text = f"maybe {' or '.join(reviewer_mentions)}"
-        elif len(reviewer_mentions) == 1:
-            # Single explicitly assigned reviewer: "assigned to @alice"
-            reviewer_text = f"assigned to {reviewer_mentions[0]}"
         else:
-            # Multiple explicitly assigned reviewers: "assigned to @alice, @bob"
+            # Explicitly assigned reviewers: "assigned to @alice" or "assigned to @alice, @bob"
             reviewer_text = f"assigned to {', '.join(reviewer_mentions)}"
     else:
         reviewer_text = "none assigned"
@@ -108,7 +105,7 @@ def process_review_request(  # noqa: PLR0917, PLR0914
             if reviewer_slack_id:
                 reviewer_slack_ids.append(reviewer_slack_id)
 
-        # Track if we're doing random assignment
+        # Track if we are doing random assignment
         is_random = False
 
         # If no reviewers assigned, randomly pick 2 from the team
@@ -126,11 +123,7 @@ def process_review_request(  # noqa: PLR0917, PLR0914
                     reviewer_slack_ids.append(reviewer_slack_id)
 
             logger.info(
-                f"Randomly assigned {len(reviewer_slack_ids)} reviewers from team {team}",
-                extra={
-                    "team": team,
-                    "assigned_count": len(reviewer_slack_ids),
-                },
+                f"Randomly assigned {len(reviewer_slack_ids)} reviewers from team {team}"
             )
 
         review_request = ReviewRequest(
