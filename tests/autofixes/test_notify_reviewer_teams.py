@@ -50,7 +50,7 @@ def test_create_slack_message(mock_pull_request: PullRequest) -> None:
     assert "PR-1" in message
     assert "Test PR" in message
     assert "test-team" in message
-    assert "(assigned to none)" in message
+    assert "(none assigned)" in message
 
 
 def test_create_slack_message_with_reviewers(mock_pull_request: PullRequest) -> None:
@@ -60,6 +60,7 @@ def test_create_slack_message_with_reviewers(mock_pull_request: PullRequest) -> 
         slack_id="U123",
         pull_request=mock_pull_request,
         reviewers=["U_ALICE", "U_BOB"],
+        is_random_assignment=False,
     )
     message = create_slack_message(review_request)
     assert "U123" in message
@@ -67,6 +68,25 @@ def test_create_slack_message_with_reviewers(mock_pull_request: PullRequest) -> 
     assert "Test PR" in message
     assert "test-team" in message
     assert "(assigned to <@U_ALICE>, <@U_BOB>)" in message
+
+
+def test_create_slack_message_with_random_reviewers(
+    mock_pull_request: PullRequest,
+) -> None:
+    review_request = ReviewRequest(
+        team="@Greenbax/test-team",
+        channel="test-channel",
+        slack_id="U123",
+        pull_request=mock_pull_request,
+        reviewers=["U_ALICE", "U_BOB"],
+        is_random_assignment=True,
+    )
+    message = create_slack_message(review_request)
+    assert "U123" in message
+    assert "PR-1" in message
+    assert "Test PR" in message
+    assert "test-team" in message
+    assert "(maybe <@U_ALICE> or <@U_BOB>)" in message
 
 
 def test_create_slack_message_with_single_reviewer(
@@ -238,7 +258,8 @@ def test_process_review_request_filters_reviewers_by_team(
     assert "<@U_ALICE>" in message_text
     assert "<@U_BOB>" in message_text
     assert "U_CHARLIE" not in message_text
-    assert "(assigned to <@U_ALICE>, <@U_BOB>)" in message_text
+    # These are explicitly assigned (not random), so should say "assigned to"
+    assert "assigned to" in message_text
 
 
 @patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")
@@ -253,7 +274,7 @@ def test_process_review_request_no_matching_team_members(
     mock_team: GithubTeam,
     mock_pull_request: PullRequest,
 ) -> None:
-    """Test that when no reviewers match team membership, no reviewers are shown."""
+    """Test that when no reviewers match team membership, 2 random team members are assigned."""
     mock_get_user_info.return_value = ("icon_url", "username")
 
     # Create mock team members
@@ -267,10 +288,12 @@ def test_process_review_request_no_matching_team_members(
     # charlie and david are NOT team members
     individual_reviewers = ["charlie", "david"]
 
-    # Mock Slack ID lookups
+    # Mock Slack ID lookups - now include alice and bob who will be randomly assigned
     def slack_id_lookup(github_login: str, _path: Path) -> str | None:
         mapping = {
             "@Greenbax/test-team": "test-channel",
+            "alice": "U_ALICE",
+            "bob": "U_BOB",
             "charlie": "U_CHARLIE",
             "david": "U_DAVID",
         }
@@ -292,10 +315,14 @@ def test_process_review_request_no_matching_team_members(
     assert success
     mock_post_message.assert_called_once()
 
-    # Check that the message shows no reviewers assigned
+    # Check that random team members were assigned (alice and/or bob)
     call_args = mock_post_message.call_args
     message_text = call_args.kwargs["text"]
-    assert "(assigned to none) is required" in message_text
+    # Should have randomly assigned 2 team members with "maybe"
+    assert "maybe" in message_text
+    # At least one of alice or bob should be mentioned
+    assert "U_ALICE" in message_text or "U_BOB" in message_text
+    # Charlie and David (non-team members) should not be in message
     assert "U_CHARLIE" not in message_text
     assert "U_DAVID" not in message_text
 
@@ -357,9 +384,7 @@ def test_process_review_request_with_team_member_reviewers(
     # Check that all three team members are in the message as Slack mentions
     call_args = mock_post_message.call_args
     message_text = call_args.kwargs["text"]
-    assert (
-        "(assigned to <@U_ALICE>, <@U_BOB>, <@U_CHARLIE>) is required" in message_text
-    )
+    assert "(assigned to <@U_ALICE>, <@U_BOB>, <@U_CHARLIE>)" in message_text
 
 
 @patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")

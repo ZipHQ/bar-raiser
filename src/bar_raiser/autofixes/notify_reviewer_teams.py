@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import sys
 from argparse import ArgumentParser
 from dataclasses import dataclass
@@ -36,27 +37,35 @@ class ReviewRequest:
     slack_id: str
     pull_request: PullRequest
     reviewers: list[str]
+    is_random_assignment: bool = False
 
 
 def create_slack_message(review_request: ReviewRequest) -> str:
     """Create a Slack message for a review request."""
     if review_request.reviewers:
-        reviewer_mentions = ", ".join([
-            f"<@{reviewer}>" for reviewer in review_request.reviewers
-        ])
-        reviewer_text = f"{reviewer_mentions}"
+        reviewer_mentions = [f"<@{reviewer}>" for reviewer in review_request.reviewers]
+
+        if review_request.is_random_assignment:
+            # Randomly assigned reviewers: "maybe @alice or @bob"
+            reviewer_text = f"maybe {' or '.join(reviewer_mentions)}"
+        elif len(reviewer_mentions) == 1:
+            # Single explicitly assigned reviewer: "assigned to @alice"
+            reviewer_text = f"assigned to {reviewer_mentions[0]}"
+        else:
+            # Multiple explicitly assigned reviewers: "assigned to @alice, @bob"
+            reviewer_text = f"assigned to {', '.join(reviewer_mentions)}"
     else:
-        reviewer_text = "none"
+        reviewer_text = "none assigned"
 
     return (
         f"Hi team, Could we please get reviews on <@{review_request.slack_id}>'s "
         f"<{review_request.pull_request.html_url}|PR-{review_request.pull_request.number}> "
         f"({review_request.pull_request.title})? A review from the *{review_request.team.split('/')[-1]}* "
-        f"team (assigned to {reviewer_text}) is required. Thanks! 🙏"
+        f"team ({reviewer_text}) is required. Thanks! 🙏"
     )
 
 
-def process_review_request(  # noqa: PLR0917
+def process_review_request(  # noqa: PLR0917, PLR0914
     request: Team,
     pull_request: PullRequest,
     slack_id: str,
@@ -99,12 +108,38 @@ def process_review_request(  # noqa: PLR0917
             if reviewer_slack_id:
                 reviewer_slack_ids.append(reviewer_slack_id)
 
+        # Track if we're doing random assignment
+        is_random = False
+
+        # If no reviewers assigned, randomly pick 2 from the team
+        if not reviewer_slack_ids and team_members:
+            is_random = True
+            team_members_list = list(team_members)
+            num_to_pick = min(2, len(team_members_list))
+            random_members = random.sample(team_members_list, num_to_pick)
+
+            for github_login in random_members:
+                reviewer_slack_id = get_slack_channel_from_mapping_path(
+                    github_login, github_login_to_slack_ids_path
+                )
+                if reviewer_slack_id:
+                    reviewer_slack_ids.append(reviewer_slack_id)
+
+            logger.info(
+                f"Randomly assigned {len(reviewer_slack_ids)} reviewers from team {team}",
+                extra={
+                    "team": team,
+                    "assigned_count": len(reviewer_slack_ids),
+                },
+            )
+
         review_request = ReviewRequest(
             team=team,
             channel=channel,
             slack_id=slack_id,
             pull_request=pull_request,
             reviewers=reviewer_slack_ids,
+            is_random_assignment=is_random,
         )
         message = create_slack_message(review_request)
         icon_url, username = get_slack_user_icon_url_and_username(slack_id)
