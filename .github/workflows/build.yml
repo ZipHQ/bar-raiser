@@ -15,8 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-        with:
-          python-version: 3.13
       - run: pdm run python3 -m bar_raiser.checks.annotate_ruff
         env:
           APP_ID: ${{ secrets.BAR_RAISER_APP_ID }}
@@ -29,8 +27,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-        with:
-          python-version: 3.13
       - run: pdm run python3 -m bar_raiser.checks.annotate_pyright
         env:
           APP_ID: ${{ secrets.BAR_RAISER_APP_ID }}
@@ -43,8 +39,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-        with:
-          python-version: 3.13
       - run: pdm run pytest --json-report tests || echo $? > pytest-exit-code.txt
       - run: pdm run python3 -m bar_raiser.checks.annotate_pytest .report.json
         env:
@@ -66,8 +60,6 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 100
       - uses: ./.github/actions/setup
-        with:
-          python-version: 3.13
       - run: pdm run python3 -m bar_raiser.tech_debt_framework.run_analyzers .
         env:
           APP_ID: ${{ secrets.BAR_RAISER_APP_ID }}
