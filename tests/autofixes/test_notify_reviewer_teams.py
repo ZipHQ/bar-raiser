@@ -199,7 +199,7 @@ def test_process_review_request_dry_run(
     mock_post_message.assert_called_once()
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
 @patch(
     "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
 )
@@ -262,7 +262,7 @@ def test_process_review_request_filters_reviewers_by_team(
     assert "assigned to" in message_text
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
 @patch(
     "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
 )
@@ -327,7 +327,7 @@ def test_process_review_request_no_matching_team_members(
     assert "U_DAVID" not in message_text
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
 @patch(
     "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
 )
@@ -387,7 +387,7 @@ def test_process_review_request_with_team_member_reviewers(
     assert "(assigned to <@U_ALICE>, <@U_BOB>, <@U_CHARLIE>)" in message_text
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
 def test_process_pull_request_no_slack_id(
     mock_get_slack_id: MagicMock,
     mock_pull_request: PullRequest,
@@ -409,7 +409,7 @@ def test_process_pull_request_no_slack_id(
     )
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
 @patch("bar_raiser.autofixes.notify_reviewer_teams.process_review_request")
 def test_process_pull_request_success(
     mock_process_request: MagicMock,
@@ -498,7 +498,7 @@ def test_process_pull_request_success(
         ),
     ],
 )
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_slack_channel_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
 @patch("bar_raiser.autofixes.notify_reviewer_teams.process_review_request")
 def test_process_pull_request_only_notify_team(  # noqa: PLR0917
     mock_process_review_request: MagicMock,

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 from bar_raiser.utils.github import get_pull_request, initialize_logging
 from bar_raiser.utils.slack import (
-    get_slack_channel_from_mapping_path,
+    get_id_from_mapping_path,
     post_a_slack_message,
 )
 
@@ -74,9 +74,7 @@ def process_review_request(  # noqa: PLR0917, PLR0914
 ) -> tuple[str, bool]:
     """Process a single review request and return the comment and success status."""
     team = f"@{request.organization.login}/{request.slug}"
-    channel = get_slack_channel_from_mapping_path(
-        team, github_team_to_slack_channels_path
-    )
+    channel = get_id_from_mapping_path(team, github_team_to_slack_channels_path)
 
     if channel is None:
         error_msg = f"Slack channel not found for Github team: {team}\n{github_team_to_slack_channels_help_msg}\n"
@@ -99,7 +97,7 @@ def process_review_request(  # noqa: PLR0917, PLR0914
         # Convert GitHub logins to Slack IDs
         reviewer_slack_ids: list[str] = []
         for github_login in filtered_github_reviewers:
-            reviewer_slack_id = get_slack_channel_from_mapping_path(
+            reviewer_slack_id = get_id_from_mapping_path(
                 github_login, github_login_to_slack_ids_path
             )
             if reviewer_slack_id:
@@ -116,7 +114,7 @@ def process_review_request(  # noqa: PLR0917, PLR0914
             random_members = random.sample(team_members_list, num_to_pick)
 
             for github_login in random_members:
-                reviewer_slack_id = get_slack_channel_from_mapping_path(
+                reviewer_slack_id = get_id_from_mapping_path(
                     github_login, github_login_to_slack_ids_path
                 )
                 if reviewer_slack_id:
@@ -164,9 +162,7 @@ def process_pull_request(  # noqa: PLR0917
 ) -> str:
     """Process all review requests for a pull request."""
     author_login = pull_request.user.login
-    slack_id = get_slack_channel_from_mapping_path(
-        author_login, github_login_to_slack_ids_path
-    )
+    slack_id = get_id_from_mapping_path(author_login, github_login_to_slack_ids_path)
     if slack_id is None:
         comment = f"No author slack_id found for author {author_login}.\n{github_login_to_slack_ids_help_msg}\n"
         logger.error(comment)
