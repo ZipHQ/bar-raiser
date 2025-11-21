@@ -54,6 +54,10 @@ line-length = 88
 preview = true
 target-version = "py311"
 
+[lint.per-file-ignores]
+"src/bar_raiser/tech_debt_framework/utils.py" = ["FURB189", "ASYNC240"]
+"src/bar_raiser/utils/slack.py" = ["PLW1514"]
+
 [lint.flake8-pytest-style]
 fixture-parentheses = false
 mark-parentheses = false
