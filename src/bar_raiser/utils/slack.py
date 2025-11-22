@@ -27,7 +27,7 @@ def post_a_slack_message(
     )
 
 
-def get_slack_channel_from_mapping_path(key: str, mapping_path: Path) -> str | None:
+def get_id_from_mapping_path(key: str, mapping_path: Path) -> str | None:
     return loads(mapping_path.read_text()).get(key, None)
 
 
@@ -37,7 +37,7 @@ def dm_on_check_failure(
     pull = get_pull_request()
 
     if pull and not pull.draft:
-        user_id = get_slack_channel_from_mapping_path(pull.user.login, mapping_path)
+        user_id = get_id_from_mapping_path(pull.user.login, mapping_path)
         if user_id:
             failed_checks = [
                 check

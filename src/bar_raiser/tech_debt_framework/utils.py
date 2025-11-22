@@ -422,9 +422,7 @@ class PathResults(dict[str, list[Result]]):
 
         delta = get_delta(
             path_results,
-            base_commit.diff(  # pyright: ignore[reportUnknownArgumentType,reportUnknownMemberType]
-                head_commit
-            ),
+            base_commit.diff(head_commit),
             analyzers,
         )
         logger.info(f"Delta: {delta}")
