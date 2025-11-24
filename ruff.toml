@@ -47,6 +47,8 @@ lint.ignore = [
   "E501", # line-too-long
   "PLR2004", # magic-value-comparison
   "PLR0913", # too-many-arguments
+  "RUF100", # unused-noqa (allow noqa comments for preview rules)
+  "RUF102", # invalid-rule-code (allow noqa for preview rules like ASYNC240)
 ]
 
 lint.extend-safe-fixes = ["UP006", "UP007"]

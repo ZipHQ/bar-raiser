@@ -317,7 +317,7 @@ def get_progress_text(beginning: int, goal: int, current: int) -> str:
     return ":white_check_mark: on track"
 
 
-class PathResults(dict[str, list[Result]]):
+class PathResults(dict[str, list[Result]]):  # noqa: FURB189
     @staticmethod
     def load(path: str) -> PathResults:
         path_results = PathResults()
@@ -330,7 +330,7 @@ class PathResults(dict[str, list[Result]]):
     @staticmethod
     async def load_with_commit(s3: S3Client, commit: Commit) -> PathResults:
         local_json_path = f"path_results-{commit.hexsha}.json"
-        if not Path(local_json_path).exists():
+        if not Path(local_json_path).exists():  # noqa: ASYNC240
             s3_key = f"{S3_KEY_PATH_RESULTS}{commit.hexsha}.json"
             await s3.download_file(
                 S3_BUCKET,
@@ -511,7 +511,7 @@ class History:
     @staticmethod
     async def load_with_commit(s3: S3Client, commit: Commit) -> History:
         local_json_path = f"history-{commit.hexsha}.json"
-        if not Path(local_json_path).exists():
+        if not Path(local_json_path).exists():  # noqa: ASYNC240
             s3_key = f"{S3_KEY_HISTORY}{commit.hexsha}.json"
             await s3.download_file(
                 S3_BUCKET,
@@ -612,7 +612,7 @@ class LeaderBoard:
     @staticmethod
     async def load_with_commit(s3: S3Client, commit: Commit) -> LeaderBoard:
         local_json_path = f"leaderboard-{commit.hexsha}.json"
-        if not Path(local_json_path).exists():
+        if not Path(local_json_path).exists():  # noqa: ASYNC240
             s3_key = f"{S3_KEY_LEADERBOARD}{commit.hexsha}.json"
             await s3.download_file(
                 S3_BUCKET,

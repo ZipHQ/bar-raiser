@@ -28,7 +28,7 @@ def post_a_slack_message(
 
 
 def get_id_from_mapping_path(key: str, mapping_path: Path) -> str | None:
-    return loads(mapping_path.read_text()).get(key, None)
+    return loads(mapping_path.read_text()).get(key, None)  # noqa: PLW1514
 
 
 def dm_on_check_failure(

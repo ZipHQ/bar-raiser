@@ -2,7 +2,7 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.2.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -10,13 +10,13 @@ repos:
       - id: check-added-large-files
 
   - repo: https://github.com/pdm-project/pdm
-    rev: 2.21.0
+    rev: 2.26.2
     hooks:
       - id: pdm-lock-check
       - id: pdm-sync
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.8.0"
+    rev: "v0.14.6"
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --show-fixes, --unsafe-fixes]
