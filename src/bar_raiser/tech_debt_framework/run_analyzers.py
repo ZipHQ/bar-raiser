@@ -42,7 +42,7 @@ logger = getLogger(__name__)
 CHECK_NAME = "quality-wins-report"
 MAX_COMMENT_LENGTH = 65536
 RAISE_THE_BAR_LOGIN = "zip-bar-raiser[bot]"
-TECH_DEBT_SHOUTOUT_CHANNEL = "C0600000000"
+QUALITY_WINS_SHOUTOUT_CHANNEL = "C07M7TK4GQH"
 
 
 def get_slack_handle_from_github_login(github_login: str) -> str:
@@ -109,7 +109,7 @@ def shout_out_contribution(
 A huge shout-out to {slack_handle} for the <https://github.com/Greenbax/evergreen/commit/{commit_sha}|{commit_sha[:7]}> change🌟 {contribution_summary}
 Your contributions are now reflected on the Code Quality Award <{check_url}|Leaderboard>!👏
 """
-        post_a_slack_message(TECH_DEBT_SHOUTOUT_CHANNEL, text)
+        post_a_slack_message(QUALITY_WINS_SHOUTOUT_CHANNEL, text)
 
 
 async def analyze_contribution_and_create_a_check_run(  # noqa: PLR0917
