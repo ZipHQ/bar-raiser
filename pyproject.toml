@@ -9,13 +9,13 @@ dependencies = [
     "gitpython>=3.1.41",
     "cryptography>=42.0.4",
     "slackclient>=2.7.2",
-    "libcst>=1.1.0",
+    "libcst>=1.1.0,<1.5.0",
     "fixit==0.1.4",
     "aioboto3>=13.0.0",
     "boto3>=1.34.106",
     "setuptools>=68.0.0"
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 readme = "README.md"
 license = {text = "BSD-3-Clause"}
 dynamic = ["version"]
@@ -48,7 +48,7 @@ venv = ".venv"
 
 [tool.pdm]
 distribution = true
-python_requires = ">=3.11"
+python_requires = ">=3.11,<3.14"
 
 [tool.pdm.version]
 source = "scm"

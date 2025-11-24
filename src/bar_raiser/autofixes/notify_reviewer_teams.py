@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import sys
 from argparse import ArgumentParser
 from dataclasses import dataclass
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 
 from bar_raiser.utils.github import get_pull_request, initialize_logging
 from bar_raiser.utils.slack import (
-    get_slack_channel_from_mapping_path,
+    get_id_from_mapping_path,
     post_a_slack_message,
 )
 
@@ -35,31 +36,45 @@ class ReviewRequest:
     channel: str | None
     slack_id: str
     pull_request: PullRequest
+    reviewers: list[str]
+    is_random_assignment: bool = False
 
 
 def create_slack_message(review_request: ReviewRequest) -> str:
     """Create a Slack message for a review request."""
+    if review_request.reviewers:
+        reviewer_mentions = [f"<@{reviewer}>" for reviewer in review_request.reviewers]
+
+        if review_request.is_random_assignment:
+            # Randomly assigned reviewers: "maybe @alice or @bob"
+            reviewer_text = f"maybe {' or '.join(reviewer_mentions)}"
+        else:
+            # Explicitly assigned reviewers: "assigned to @alice" or "assigned to @alice, @bob"
+            reviewer_text = f"assigned to {', '.join(reviewer_mentions)}"
+    else:
+        reviewer_text = "none assigned"
+
     return (
         f"Hi team, Could we please get reviews on <@{review_request.slack_id}>'s "
         f"<{review_request.pull_request.html_url}|PR-{review_request.pull_request.number}> "
         f"({review_request.pull_request.title})? A review from the *{review_request.team.split('/')[-1]}* "
-        "team is required. Thanks! 🙏"
+        f"team ({reviewer_text}) is required. Thanks! 🙏"
     )
 
 
-def process_review_request(  # noqa: PLR0917
+def process_review_request(  # noqa: PLR0917, PLR0914
     request: Team,
     pull_request: PullRequest,
     slack_id: str,
     dry_run: str,
     github_team_to_slack_channels_path: Path,
     github_team_to_slack_channels_help_msg: str,
+    individual_reviewers: list[str],
+    github_login_to_slack_ids_path: Path,
 ) -> tuple[str, bool]:
     """Process a single review request and return the comment and success status."""
     team = f"@{request.organization.login}/{request.slug}"
-    channel = get_slack_channel_from_mapping_path(
-        team, github_team_to_slack_channels_path
-    )
+    channel = get_id_from_mapping_path(team, github_team_to_slack_channels_path)
 
     if channel is None:
         error_msg = f"Slack channel not found for Github team: {team}\n{github_team_to_slack_channels_help_msg}\n"
@@ -73,8 +88,49 @@ def process_review_request(  # noqa: PLR0917
         channel = dry_run
 
     if channel:
+        # Filter reviewers to only include members of this team
+        team_members = {member.login for member in request.get_members()}
+        filtered_github_reviewers = [
+            r for r in individual_reviewers if r in team_members
+        ]
+
+        # Convert GitHub logins to Slack IDs
+        reviewer_slack_ids: list[str] = []
+        for github_login in filtered_github_reviewers:
+            reviewer_slack_id = get_id_from_mapping_path(
+                github_login, github_login_to_slack_ids_path
+            )
+            if reviewer_slack_id:
+                reviewer_slack_ids.append(reviewer_slack_id)
+
+        # Track if we are doing random assignment
+        is_random = False
+
+        # If no reviewers assigned, randomly pick 2 from the team
+        if not reviewer_slack_ids and team_members:
+            is_random = True
+            team_members_list = list(team_members)
+            num_to_pick = min(2, len(team_members_list))
+            random_members = random.sample(team_members_list, num_to_pick)
+
+            for github_login in random_members:
+                reviewer_slack_id = get_id_from_mapping_path(
+                    github_login, github_login_to_slack_ids_path
+                )
+                if reviewer_slack_id:
+                    reviewer_slack_ids.append(reviewer_slack_id)
+
+            logger.info(
+                f"Randomly assigned {len(reviewer_slack_ids)} reviewers from team {team}"
+            )
+
         review_request = ReviewRequest(
-            team=team, channel=channel, slack_id=slack_id, pull_request=pull_request
+            team=team,
+            channel=channel,
+            slack_id=slack_id,
+            pull_request=pull_request,
+            reviewers=reviewer_slack_ids,
+            is_random_assignment=is_random,
         )
         message = create_slack_message(review_request)
         icon_url, username = get_slack_user_icon_url_and_username(slack_id)
@@ -106,9 +162,7 @@ def process_pull_request(  # noqa: PLR0917
 ) -> str:
     """Process all review requests for a pull request."""
     author_login = pull_request.user.login
-    slack_id = get_slack_channel_from_mapping_path(
-        author_login, github_login_to_slack_ids_path
-    )
+    slack_id = get_id_from_mapping_path(author_login, github_login_to_slack_ids_path)
     if slack_id is None:
         comment = f"No author slack_id found for author {author_login}.\n{github_login_to_slack_ids_help_msg}\n"
         logger.error(comment)
@@ -116,7 +170,18 @@ def process_pull_request(  # noqa: PLR0917
 
     accumulated_comments = ""
 
-    for team_requests_list in pull_request.get_review_requests():  # noqa: PLR1702
+    # Get review requests - returns (teams, users)
+    review_requests = pull_request.get_review_requests()
+
+    # Collect individual reviewer logins
+    individual_reviewers = [
+        item.login
+        for item_list in review_requests
+        for item in item_list
+        if not isinstance(item, Team)
+    ]
+
+    for team_requests_list in review_requests:  # noqa: PLR1702
         for requested_team_obj in team_requests_list:
             if isinstance(requested_team_obj, Team):
                 current_team_slug = requested_team_obj.slug
@@ -130,6 +195,8 @@ def process_pull_request(  # noqa: PLR0917
                             dry_run,
                             github_team_to_slack_channels_path,
                             github_team_to_slack_channels_help_msg,
+                            individual_reviewers,
+                            github_login_to_slack_ids_path,
                         )
                         if single_request_comment:
                             accumulated_comments += single_request_comment
@@ -147,6 +214,8 @@ def process_pull_request(  # noqa: PLR0917
                         dry_run,
                         github_team_to_slack_channels_path,
                         github_team_to_slack_channels_help_msg,
+                        individual_reviewers,
+                        github_login_to_slack_ids_path,
                     )
                     if single_request_comment:
                         accumulated_comments += single_request_comment

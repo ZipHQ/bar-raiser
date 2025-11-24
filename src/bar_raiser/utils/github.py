@@ -7,7 +7,7 @@ from os import environ
 from pathlib import Path
 from subprocess import check_output
 from sys import stdout
-from typing import TYPE_CHECKING, Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, TypedDict, cast
 from zoneinfo import ZoneInfo
 
 from git.repo import Repo
@@ -98,12 +98,15 @@ def create_check_run(
             name=name,
             head_sha=head_sha,
             conclusion=conclusion,
-            output={  # pyright: ignore[reportArgumentType]
-                "title": title,
-                "summary": summary,
-                "annotations": batch,
-            },
-            actions=actions,  # pyright: ignore[reportArgumentType]
+            output=cast(
+                "dict[str, str | list[dict[str, str | int]]]",
+                {
+                    "title": title,
+                    "summary": summary,
+                    "annotations": batch,
+                },
+            ),
+            actions=cast("list[dict[str, str]]", actions),
         )
         logger.info(check.html_url)
         checks.append(check)
@@ -158,19 +161,18 @@ def run_codemod_and_commit_changes(
     if run_on_updated_paths:
         pull_updated_paths = get_updated_paths(pull)
         commands = [command + pull_updated_paths for command in commands]
+    else:
+        pull_updated_paths = []
 
     for command in commands:
         check_output(command)
 
     git_repo = get_git_repo()
     updated_paths: list[str] = [
-        i.b_path  # pyright: ignore[reportUnknownMemberType]
-        for i in git_repo.index.diff(  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-            None
-        )
+        i.b_path for i in git_repo.index.diff(None) if i.b_path is not None
     ]
     if run_on_updated_paths:
-        updated_paths = [path for path in updated_paths if path in updated_paths]
+        updated_paths = [path for path in updated_paths if path in pull_updated_paths]
 
     logger.info(f"Updated paths: {updated_paths}")
     if len(updated_paths) == 0:
@@ -201,10 +203,7 @@ def create_a_pull_request(
         else codemod.replace(" ", "-")
     )
     updated_paths: list[str] = [
-        i.b_path  # pyright: ignore[reportUnknownMemberType]
-        for i in git_repo.index.diff(  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-            None
-        )
+        i.b_path for i in git_repo.index.diff(None) if i.b_path is not None
     ]
     if len(updated_paths) == 0:
         msg = "No updated paths to commit."
