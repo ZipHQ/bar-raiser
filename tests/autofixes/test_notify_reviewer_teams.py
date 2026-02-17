@@ -384,7 +384,8 @@ def test_process_review_request_excludes_author_from_random_suggestions(
     message_text = call_args.kwargs["text"]
     # Random suggestions should only come from non-author team members
     assert "maybe" in message_text
-    assert "<@U_ALICE>" in message_text and "<@U_BOB>" in message_text
+    assert "<@U_ALICE>" in message_text
+    assert "<@U_BOB>" in message_text
     # The author should appear as the PR owner but NOT as a suggested reviewer
     assert "maybe <@U_AUTHOR>" not in message_text
 
