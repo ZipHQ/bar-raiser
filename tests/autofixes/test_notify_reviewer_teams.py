@@ -332,6 +332,68 @@ def test_process_review_request_no_matching_team_members(
     "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
 )
 @patch("bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message")
+def test_process_review_request_excludes_author_from_random_suggestions(
+    mock_post_message: MagicMock,
+    mock_get_user_info: MagicMock,
+    mock_get_slack_id: MagicMock,
+    mock_team: GithubTeam,
+    mock_pull_request: PullRequest,
+) -> None:
+    """Test that the PR author is excluded from randomly suggested reviewers."""
+    mock_get_user_info.return_value = ("icon_url", "username")
+
+    # Create mock team members including the PR author ("testuser")
+    author = MagicMock()
+    author.login = "testuser"
+    member1 = MagicMock()
+    member1.login = "alice"
+    member2 = MagicMock()
+    member2.login = "bob"
+
+    mock_team.get_members = MagicMock(return_value=[author, member1, member2])  # type: ignore[method-assign]
+
+    # No individual reviewers assigned — triggers random assignment
+    individual_reviewers: list[str] = []
+
+    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
+        mapping = {
+            "@Greenbax/test-team": "test-channel",
+            "testuser": "U_AUTHOR",
+            "alice": "U_ALICE",
+            "bob": "U_BOB",
+        }
+        return mapping.get(github_login)
+
+    mock_get_slack_id.side_effect = slack_id_lookup
+
+    _comment, success = process_review_request(
+        mock_team,
+        mock_pull_request,
+        "U_AUTHOR",
+        dry_run="test-channel",
+        github_team_to_slack_channels_path=Path("test-path"),
+        github_team_to_slack_channels_help_msg="",
+        individual_reviewers=individual_reviewers,
+        github_login_to_slack_ids_path=Path("test-path-login"),
+    )
+
+    assert success
+    mock_post_message.assert_called_once()
+
+    call_args = mock_post_message.call_args
+    message_text = call_args.kwargs["text"]
+    # Random suggestions should only come from non-author team members
+    assert "maybe" in message_text
+    assert "<@U_ALICE>" in message_text and "<@U_BOB>" in message_text
+    # The author should appear as the PR owner but NOT as a suggested reviewer
+    assert "maybe <@U_AUTHOR>" not in message_text
+
+
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
+@patch(
+    "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
+)
+@patch("bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message")
 def test_process_review_request_with_team_member_reviewers(
     mock_post_message: MagicMock,
     mock_get_user_info: MagicMock,
