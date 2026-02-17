@@ -109,7 +109,9 @@ def process_review_request(  # noqa: PLR0917, PLR0914
         # If no reviewers assigned, randomly pick 2 from the team
         if not reviewer_slack_ids and team_members:
             is_random = True
-            team_members_list = list(team_members)
+            team_members_list = [
+                m for m in team_members if m != pull_request.user.login
+            ]
             num_to_pick = min(2, len(team_members_list))
             random_members = random.sample(team_members_list, num_to_pick)
 
