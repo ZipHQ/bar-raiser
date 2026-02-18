@@ -642,19 +642,20 @@ def test_main(mock_get_pull_request: MagicMock) -> None:
     mock_pull_request.remove_from_labels.assert_called_once_with(LABEL_TO_REMOVE)
 
 
-def test_create_slack_message_bot_author_no_slack_id(
+def test_create_slack_message_bot_author(
     mock_pull_request: PullRequest,
 ) -> None:
     """Test that bot-authored PRs produce a message without an author @mention."""
     review_request = ReviewRequest(
         team="@Greenbax/test-team",
         channel="test-channel",
-        slack_id=None,
+        slack_id="U_BOT",
         pull_request=mock_pull_request,
         reviewers=["U_ALICE"],
+        is_bot_author=True,
     )
     message = create_slack_message(review_request)
-    assert "<@" not in message.split("(assigned")[0]  # No @mention before reviewer list
+    assert "<@U_BOT>" not in message  # Bot slack_id should not appear as @mention
     assert "PR-1" in message
     assert "Test PR" in message
     assert "test-team" in message
@@ -663,15 +664,15 @@ def test_create_slack_message_bot_author_no_slack_id(
 
 @patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
 @patch("bar_raiser.autofixes.notify_reviewer_teams.process_review_request")
-def test_process_pull_request_bot_author_sends_notification(
+def test_process_pull_request_bot_author_notification(
     mock_process_request: MagicMock,
     mock_get_slack_id: MagicMock,
     mock_pull_request: PullRequest,
     mock_team: GithubTeam,
 ) -> None:
-    """Test that bot-authored PRs proceed with notification even without a Slack mapping."""
+    """Test that bot-authored PRs pass is_bot_author=True to process_review_request."""
     mock_pull_request.user.login = "zip-bar-raiser[bot]"
-    mock_get_slack_id.return_value = None  # Bot has no Slack mapping
+    mock_get_slack_id.return_value = "U_BOT"
     mock_process_request.return_value = ("Sent message to Slack channel", True)
     mock_pull_request.get_review_requests = MagicMock(return_value=[[mock_team]])
 
@@ -679,69 +680,41 @@ def test_process_pull_request_bot_author_sends_notification(
         mock_pull_request,
         dry_run="test-channel",
         github_login_to_slack_ids_path=Path("test-path-1"),
-        github_login_to_slack_ids_help_msg="Please update the mapping",
+        github_login_to_slack_ids_help_msg="",
         github_team_to_slack_channels_path=Path("test-path-2"),
         github_team_to_slack_channels_help_msg="",
         only_notify_team_slug=None,
     )
     assert "Sent message" in comment
     mock_process_request.assert_called_once()
-    # Verify slack_id=None was passed through
-    call_args = mock_process_request.call_args
-    assert call_args[0][2] is None  # slack_id positional arg
+    call_kwargs = mock_process_request.call_args
+    assert call_kwargs.kwargs["is_bot_author"] is True
 
 
 @patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
-def test_process_pull_request_human_author_no_slack_id_still_errors(
+@patch("bar_raiser.autofixes.notify_reviewer_teams.process_review_request")
+def test_process_pull_request_human_author_notification(
+    mock_process_request: MagicMock,
     mock_get_slack_id: MagicMock,
     mock_pull_request: PullRequest,
+    mock_team: GithubTeam,
 ) -> None:
-    """Test that human authors without Slack mapping still get an error (no regression)."""
-    mock_pull_request.user.login = "some-human-user"
-    mock_get_slack_id.return_value = None
+    """Test that human-authored PRs pass is_bot_author=False to process_review_request."""
+    mock_pull_request.user.login = "testuser"
+    mock_get_slack_id.return_value = "U123"
+    mock_process_request.return_value = ("Sent message to Slack channel", True)
+    mock_pull_request.get_review_requests = MagicMock(return_value=[[mock_team]])
 
     comment = process_pull_request(
         mock_pull_request,
         dry_run="test-channel",
         github_login_to_slack_ids_path=Path("test-path-1"),
-        github_login_to_slack_ids_help_msg="Please update the mapping",
+        github_login_to_slack_ids_help_msg="",
         github_team_to_slack_channels_path=Path("test-path-2"),
         github_team_to_slack_channels_help_msg="",
         only_notify_team_slug=None,
     )
-    assert "No author slack_id found for author some-human-user" in comment
-
-
-@patch(
-    "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
-)
-@patch("bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message")
-def test_process_review_request_bot_author_skips_icon_lookup(
-    mock_post_message: MagicMock,
-    mock_get_user_info: MagicMock,
-    mock_team: GithubTeam,
-    mock_pull_request: PullRequest,
-) -> None:
-    """Test that icon/username lookup is skipped when slack_id is None."""
-    mock_team.get_members = MagicMock(return_value=[])  # type: ignore[method-assign]
-
-    with patch(
-        "pathlib.Path.read_text",
-        return_value=dumps({"@Greenbax/test-team": "test-channel"}),
-    ):
-        _comment, success = process_review_request(
-            mock_team,
-            mock_pull_request,
-            None,  # Bot author has no slack_id
-            dry_run="test-channel",
-            github_team_to_slack_channels_path=Path("test-path"),
-            github_team_to_slack_channels_help_msg="",
-            individual_reviewers=[],
-            github_login_to_slack_ids_path=Path("test-path-login"),
-        )
-    assert success
-    mock_get_user_info.assert_not_called()
-    mock_post_message.assert_called_once()
-    call_kwargs = mock_post_message.call_args.kwargs
-    assert call_kwargs["icon_url"] is None
-    assert call_kwargs["username"] is None
+    assert "Sent message" in comment
+    mock_process_request.assert_called_once()
+    call_kwargs = mock_process_request.call_args
+    assert call_kwargs.kwargs["is_bot_author"] is False

@@ -34,10 +34,11 @@ LABEL_TO_REMOVE = "autofix-notify-reviewer-teams"
 class ReviewRequest:
     team: str
     channel: str | None
-    slack_id: str | None
+    slack_id: str
     pull_request: PullRequest
     reviewers: list[str]
     is_random_assignment: bool = False
+    is_bot_author: bool = False
 
 
 def create_slack_message(review_request: ReviewRequest) -> str:
@@ -55,10 +56,10 @@ def create_slack_message(review_request: ReviewRequest) -> str:
         reviewer_text = "none assigned"
 
     pr_link = f"<{review_request.pull_request.html_url}|PR-{review_request.pull_request.number}>"
-    if review_request.slack_id is not None:
-        pr_ref = f"<@{review_request.slack_id}>'s {pr_link}"
-    else:
+    if review_request.is_bot_author:
         pr_ref = pr_link
+    else:
+        pr_ref = f"<@{review_request.slack_id}>'s {pr_link}"
 
     return (
         f"Hi team, Could we please get reviews on {pr_ref} "
@@ -70,12 +71,13 @@ def create_slack_message(review_request: ReviewRequest) -> str:
 def process_review_request(  # noqa: PLR0917, PLR0914
     request: Team,
     pull_request: PullRequest,
-    slack_id: str | None,
+    slack_id: str,
     dry_run: str,
     github_team_to_slack_channels_path: Path,
     github_team_to_slack_channels_help_msg: str,
     individual_reviewers: list[str],
     github_login_to_slack_ids_path: Path,
+    is_bot_author: bool = False,
 ) -> tuple[str, bool]:
     """Process a single review request and return the comment and success status."""
     team = f"@{request.organization.login}/{request.slug}"
@@ -138,13 +140,11 @@ def process_review_request(  # noqa: PLR0917, PLR0914
             pull_request=pull_request,
             reviewers=reviewer_slack_ids,
             is_random_assignment=is_random,
+            is_bot_author=is_bot_author,
         )
         message = create_slack_message(review_request)
 
-        if slack_id is not None:
-            icon_url, username = get_slack_user_icon_url_and_username(slack_id)
-        else:
-            icon_url, username = None, None
+        icon_url, username = get_slack_user_icon_url_and_username(slack_id)
 
         post_a_slack_message(
             channel=channel,
@@ -162,7 +162,7 @@ def process_review_request(  # noqa: PLR0917, PLR0914
     return "", False
 
 
-def process_pull_request(  # noqa: PLR0917, PLR0912
+def process_pull_request(  # noqa: PLR0917
     pull_request: PullRequest,
     dry_run: str,
     github_login_to_slack_ids_path: Path,
@@ -174,15 +174,11 @@ def process_pull_request(  # noqa: PLR0917, PLR0912
     """Process all review requests for a pull request."""
     author_login = pull_request.user.login
     slack_id = get_id_from_mapping_path(author_login, github_login_to_slack_ids_path)
+    is_bot_author = author_login.endswith("[bot]")
     if slack_id is None:
-        if author_login.endswith("[bot]"):
-            logger.info(
-                f"Bot author {author_login}, proceeding without author Slack ID."
-            )
-        else:
-            comment = f"No author slack_id found for author {author_login}.\n{github_login_to_slack_ids_help_msg}\n"
-            logger.error(comment)
-            return comment
+        comment = f"No author slack_id found for author {author_login}.\n{github_login_to_slack_ids_help_msg}\n"
+        logger.error(comment)
+        return comment
 
     accumulated_comments = ""
 
@@ -213,6 +209,7 @@ def process_pull_request(  # noqa: PLR0917, PLR0912
                             github_team_to_slack_channels_help_msg,
                             individual_reviewers,
                             github_login_to_slack_ids_path,
+                            is_bot_author=is_bot_author,
                         )
                         if single_request_comment:
                             accumulated_comments += single_request_comment
@@ -232,6 +229,7 @@ def process_pull_request(  # noqa: PLR0917, PLR0912
                         github_team_to_slack_channels_help_msg,
                         individual_reviewers,
                         github_login_to_slack_ids_path,
+                        is_bot_author=is_bot_author,
                     )
                     if single_request_comment:
                         accumulated_comments += single_request_comment
