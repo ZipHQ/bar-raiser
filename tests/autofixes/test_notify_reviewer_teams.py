@@ -729,7 +729,7 @@ def test_process_review_request_bot_author_skips_icon_lookup(
         "pathlib.Path.read_text",
         return_value=dumps({"@Greenbax/test-team": "test-channel"}),
     ):
-        comment, success = process_review_request(
+        _comment, success = process_review_request(
             mock_team,
             mock_pull_request,
             None,  # Bot author has no slack_id
