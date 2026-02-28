@@ -179,11 +179,15 @@ def process_pull_request(  # noqa: PLR0917, PLR0912
         # Bot-authored PR: use the label sender (GITHUB_ACTOR) instead
         label_sender = environ.get("GITHUB_ACTOR")
         if label_sender:
-            slack_id = get_id_from_mapping_path(label_sender, github_login_to_slack_ids_path)
+            slack_id = get_id_from_mapping_path(
+                label_sender, github_login_to_slack_ids_path
+            )
         else:
             slack_id = None
     else:
-        slack_id = get_id_from_mapping_path(author_login, github_login_to_slack_ids_path)
+        slack_id = get_id_from_mapping_path(
+            author_login, github_login_to_slack_ids_path
+        )
         if slack_id is None:
             comment = f"No author slack_id found for author {author_login}.\n{github_login_to_slack_ids_help_msg}\n"
             logger.error(comment)

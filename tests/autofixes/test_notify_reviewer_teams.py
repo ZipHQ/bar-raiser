@@ -67,8 +67,7 @@ def test_create_slack_message_no_slack_id(mock_pull_request: PullRequest) -> Non
     assert "test-team" in message
     assert "<@" not in message
     assert (
-        "Could we please get reviews on <https://github.com/test/pr/1|PR-1>"
-        in message
+        "Could we please get reviews on <https://github.com/test/pr/1|PR-1>" in message
     )
 
 
@@ -551,6 +550,7 @@ def test_process_pull_request_bot_author_no_github_actor(
 
     with patch.dict("os.environ", {}, clear=False):
         import os
+
         os.environ.pop("GITHUB_ACTOR", None)
         comment = process_pull_request(
             mock_pull_request,
