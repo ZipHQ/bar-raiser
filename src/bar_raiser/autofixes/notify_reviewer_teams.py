@@ -5,6 +5,7 @@ import sys
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from logging import getLogger
+from os import environ
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -34,7 +35,7 @@ LABEL_TO_REMOVE = "autofix-notify-reviewer-teams"
 class ReviewRequest:
     team: str
     channel: str | None
-    slack_id: str
+    slack_id: str | None
     pull_request: PullRequest
     reviewers: list[str]
     is_random_assignment: bool = False
@@ -54,9 +55,15 @@ def create_slack_message(review_request: ReviewRequest) -> str:
     else:
         reviewer_text = "none assigned"
 
+    pr_link = f"<{review_request.pull_request.html_url}|PR-{review_request.pull_request.number}>"
+
+    if review_request.slack_id:
+        pr_reference = f"<@{review_request.slack_id}>'s {pr_link}"
+    else:
+        pr_reference = pr_link
+
     return (
-        f"Hi team, Could we please get reviews on <@{review_request.slack_id}>'s "
-        f"<{review_request.pull_request.html_url}|PR-{review_request.pull_request.number}> "
+        f"Hi team, Could we please get reviews on {pr_reference} "
         f"({review_request.pull_request.title})? A review from the *{review_request.team.split('/')[-1]}* "
         f"team ({reviewer_text}) is required. Thanks! 🙏"
     )
@@ -65,7 +72,7 @@ def create_slack_message(review_request: ReviewRequest) -> str:
 def process_review_request(  # noqa: PLR0917, PLR0914
     request: Team,
     pull_request: PullRequest,
-    slack_id: str,
+    slack_id: str | None,
     dry_run: str,
     github_team_to_slack_channels_path: Path,
     github_team_to_slack_channels_help_msg: str,
@@ -135,7 +142,10 @@ def process_review_request(  # noqa: PLR0917, PLR0914
             is_random_assignment=is_random,
         )
         message = create_slack_message(review_request)
-        icon_url, username = get_slack_user_icon_url_and_username(slack_id)
+        if slack_id:
+            icon_url, username = get_slack_user_icon_url_and_username(slack_id)
+        else:
+            icon_url, username = None, None
 
         post_a_slack_message(
             channel=channel,
@@ -153,7 +163,7 @@ def process_review_request(  # noqa: PLR0917, PLR0914
     return "", False
 
 
-def process_pull_request(  # noqa: PLR0917
+def process_pull_request(  # noqa: PLR0917, PLR0912
     pull_request: PullRequest,
     dry_run: str,
     github_login_to_slack_ids_path: Path,
@@ -164,11 +174,24 @@ def process_pull_request(  # noqa: PLR0917
 ) -> str:
     """Process all review requests for a pull request."""
     author_login = pull_request.user.login
-    slack_id = get_id_from_mapping_path(author_login, github_login_to_slack_ids_path)
-    if slack_id is None:
-        comment = f"No author slack_id found for author {author_login}.\n{github_login_to_slack_ids_help_msg}\n"
-        logger.error(comment)
-        return comment
+
+    if author_login.endswith("[bot]"):
+        # Bot-authored PR: use the label sender (GITHUB_ACTOR) instead
+        label_sender = environ.get("GITHUB_ACTOR")
+        if label_sender:
+            slack_id = get_id_from_mapping_path(
+                label_sender, github_login_to_slack_ids_path
+            )
+        else:
+            slack_id = None
+    else:
+        slack_id = get_id_from_mapping_path(
+            author_login, github_login_to_slack_ids_path
+        )
+        if slack_id is None:
+            comment = f"No author slack_id found for author {author_login}.\n{github_login_to_slack_ids_help_msg}\n"
+            logger.error(comment)
+            return comment
 
     accumulated_comments = ""
 

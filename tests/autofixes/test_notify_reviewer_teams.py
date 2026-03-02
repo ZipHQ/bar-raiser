@@ -53,6 +53,24 @@ def test_create_slack_message(mock_pull_request: PullRequest) -> None:
     assert "(none assigned)" in message
 
 
+def test_create_slack_message_no_slack_id(mock_pull_request: PullRequest) -> None:
+    review_request = ReviewRequest(
+        team="@Greenbax/test-team",
+        channel="test-channel",
+        slack_id=None,
+        pull_request=mock_pull_request,
+        reviewers=[],
+    )
+    message = create_slack_message(review_request)
+    assert "PR-1" in message
+    assert "Test PR" in message
+    assert "test-team" in message
+    assert "<@" not in message
+    assert (
+        "Could we please get reviews on <https://github.com/test/pr/1|PR-1>" in message
+    )
+
+
 def test_create_slack_message_with_reviewers(mock_pull_request: PullRequest) -> None:
     review_request = ReviewRequest(
         team="@Greenbax/test-team",
@@ -448,6 +466,105 @@ def test_process_review_request_with_team_member_reviewers(
     call_args = mock_post_message.call_args
     message_text = call_args.kwargs["text"]
     assert "(assigned to <@U_ALICE>, <@U_BOB>, <@U_CHARLIE>)" in message_text
+
+
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams.process_review_request")
+def test_process_pull_request_bot_author_uses_label_sender(
+    mock_process_request: MagicMock,
+    mock_get_slack_id: MagicMock,
+    mock_pull_request: PullRequest,
+    mock_team: GithubTeam,
+) -> None:
+    """When PR author is a bot, use GITHUB_ACTOR (label sender) for Slack mention."""
+    mock_pull_request.user.login = "my-app[bot]"
+
+    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
+        return {"victor": "U_VICTOR"}.get(github_login)
+
+    mock_get_slack_id.side_effect = slack_id_lookup
+    mock_process_request.return_value = ("Test comment", True)
+    mock_pull_request.get_review_requests = MagicMock(return_value=[[mock_team]])
+
+    with patch.dict("os.environ", {"GITHUB_ACTOR": "victor"}):
+        comment = process_pull_request(
+            mock_pull_request,
+            dry_run="test-channel",
+            github_login_to_slack_ids_path=Path("test-path-1"),
+            github_login_to_slack_ids_help_msg="",
+            github_team_to_slack_channels_path=Path("test-path-2"),
+            github_team_to_slack_channels_help_msg="",
+            only_notify_team_slug=None,
+        )
+
+    assert comment == "Test comment"
+    # Verify process_review_request was called with the label sender's Slack ID
+    call_args = mock_process_request.call_args
+    assert call_args[0][2] == "U_VICTOR"  # slack_id positional arg
+
+
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams.process_review_request")
+def test_process_pull_request_bot_author_no_sender_mapping(
+    mock_process_request: MagicMock,
+    mock_get_slack_id: MagicMock,
+    mock_pull_request: PullRequest,
+    mock_team: GithubTeam,
+) -> None:
+    """When PR author is a bot and label sender has no Slack mapping, slack_id is None."""
+    mock_pull_request.user.login = "my-app[bot]"
+    mock_get_slack_id.return_value = None
+    mock_process_request.return_value = ("Test comment", True)
+    mock_pull_request.get_review_requests = MagicMock(return_value=[[mock_team]])
+
+    with patch.dict("os.environ", {"GITHUB_ACTOR": "unknown-user"}):
+        comment = process_pull_request(
+            mock_pull_request,
+            dry_run="test-channel",
+            github_login_to_slack_ids_path=Path("test-path-1"),
+            github_login_to_slack_ids_help_msg="",
+            github_team_to_slack_channels_path=Path("test-path-2"),
+            github_team_to_slack_channels_help_msg="",
+            only_notify_team_slug=None,
+        )
+
+    assert comment == "Test comment"
+    # Verify process_review_request was called with None slack_id
+    call_args = mock_process_request.call_args
+    assert call_args[0][2] is None  # slack_id positional arg
+
+
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams.process_review_request")
+def test_process_pull_request_bot_author_no_github_actor(
+    mock_process_request: MagicMock,
+    mock_get_slack_id: MagicMock,
+    mock_pull_request: PullRequest,
+    mock_team: GithubTeam,
+) -> None:
+    """When PR author is a bot and GITHUB_ACTOR is not set, slack_id is None."""
+    mock_pull_request.user.login = "my-app[bot]"
+    mock_get_slack_id.return_value = None
+    mock_process_request.return_value = ("Test comment", True)
+    mock_pull_request.get_review_requests = MagicMock(return_value=[[mock_team]])
+
+    with patch.dict("os.environ", {}, clear=False):
+        import os
+
+        os.environ.pop("GITHUB_ACTOR", None)
+        comment = process_pull_request(
+            mock_pull_request,
+            dry_run="test-channel",
+            github_login_to_slack_ids_path=Path("test-path-1"),
+            github_login_to_slack_ids_help_msg="",
+            github_team_to_slack_channels_path=Path("test-path-2"),
+            github_team_to_slack_channels_help_msg="",
+            only_notify_team_slug=None,
+        )
+
+    assert comment == "Test comment"
+    call_args = mock_process_request.call_args
+    assert call_args[0][2] is None  # slack_id positional arg
 
 
 @patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
