@@ -44,7 +44,7 @@ runs:
         branch: master
         if_no_artifact_found: ignore
         search_artifacts: true
-        workflow_conclusion: ""
+        workflow_conclusion: "success"
     - name: Check if already run today
       id: check-run-date
       shell: bash
