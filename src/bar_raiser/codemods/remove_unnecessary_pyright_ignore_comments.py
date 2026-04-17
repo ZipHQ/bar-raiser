@@ -130,11 +130,11 @@ class RemoveUnnecessaryPyrightIgnoreComments(VisitorBasedCodemodCommand):
 
         comment_rules = {
             comment_rule
-            for _comment_rules in re.findall(
+            for comment_rules in re.findall(
                 self.COMMENT_RULE_REGEX, (original_node and original_node.value) or ""
             )
-            for comment_rule in _comment_rules.split(",")
-            if _comment_rules and comment_rule
+            for comment_rule in comment_rules.split(",")
+            if comment_rules and comment_rule
         }
 
         comment_value: str | None = None
@@ -150,7 +150,8 @@ class RemoveUnnecessaryPyrightIgnoreComments(VisitorBasedCodemodCommand):
 
             comment_value = " ".join([
                 pyright_ignore_comment_value,
-                re.sub(self.COMMENT_REGEX, "", original_node.value)
+                re
+                .sub(self.COMMENT_REGEX, "", original_node.value)
                 .replace("#", "")
                 .strip(),
             ]).strip()
