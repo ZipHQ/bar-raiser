@@ -20,7 +20,7 @@ import libcst as cst
 import libcst.metadata.type_inference_provider as _tip
 
 if not hasattr(_tip, "run_command"):
-    _tip.run_command = None
+    _tip.run_command = None  # pyright: ignore[reportAttributeAccessIssue]
 
 from dateutil.relativedelta import relativedelta
 from fixit import CstLintRule
