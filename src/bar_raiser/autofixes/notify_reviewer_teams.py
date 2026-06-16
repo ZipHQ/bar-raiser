@@ -39,6 +39,7 @@ class ReviewRequest:
     pull_request: PullRequest
     reviewers: list[str]
     is_random_assignment: bool = False
+    summary: str | None = None
 
 
 def create_slack_message(review_request: ReviewRequest) -> str:
@@ -62,11 +63,16 @@ def create_slack_message(review_request: ReviewRequest) -> str:
     else:
         pr_reference = pr_link
 
-    return (
+    message = (
         f"Hi team, Could we please get reviews on {pr_reference} "
         f"({review_request.pull_request.title})? A review from the *{review_request.team.split('/')[-1]}* "
         f"team ({reviewer_text}) is required. Thanks! 🙏"
     )
+
+    if review_request.summary:
+        message += f"\n{review_request.summary}"
+
+    return message
 
 
 def process_review_request(  # noqa: PLR0917, PLR0914
@@ -78,6 +84,7 @@ def process_review_request(  # noqa: PLR0917, PLR0914
     github_team_to_slack_channels_help_msg: str,
     individual_reviewers: list[str],
     github_login_to_slack_ids_path: Path,
+    summary_json_path: Path | None = None,
 ) -> tuple[str, bool]:
     """Process a single review request and return the comment and success status."""
     team = f"@{request.organization.login}/{request.slug}"
@@ -133,6 +140,12 @@ def process_review_request(  # noqa: PLR0917, PLR0914
                 f"Randomly assigned {len(reviewer_slack_ids)} reviewers from team {team}"
             )
 
+        summary = (
+            get_id_from_mapping_path(team, summary_json_path)
+            if summary_json_path is not None
+            else None
+        )
+
         review_request = ReviewRequest(
             team=team,
             channel=channel,
@@ -140,6 +153,7 @@ def process_review_request(  # noqa: PLR0917, PLR0914
             pull_request=pull_request,
             reviewers=reviewer_slack_ids,
             is_random_assignment=is_random,
+            summary=summary,
         )
         message = create_slack_message(review_request)
         if slack_id:
@@ -171,6 +185,7 @@ def process_pull_request(  # noqa: PLR0917, PLR0912
     github_team_to_slack_channels_path: Path,
     github_team_to_slack_channels_help_msg: str,
     only_notify_team_slug: str | None,
+    summary_json_path: Path | None = None,
 ) -> str:
     """Process all review requests for a pull request."""
     author_login = pull_request.user.login
@@ -222,6 +237,7 @@ def process_pull_request(  # noqa: PLR0917, PLR0912
                             github_team_to_slack_channels_help_msg,
                             individual_reviewers,
                             github_login_to_slack_ids_path,
+                            summary_json_path,
                         )
                         if single_request_comment:
                             accumulated_comments += single_request_comment
@@ -241,6 +257,7 @@ def process_pull_request(  # noqa: PLR0917, PLR0912
                         github_team_to_slack_channels_help_msg,
                         individual_reviewers,
                         github_login_to_slack_ids_path,
+                        summary_json_path,
                     )
                     if single_request_comment:
                         accumulated_comments += single_request_comment
@@ -290,6 +307,16 @@ def main() -> None:
         help="Only send notification to the specific team slug if they are a requested reviewer.",
         default=None,
     )
+    parser.add_argument(
+        "--summary-json-path",
+        type=Path,
+        help=(
+            "Optional path to a JSON file mapping a GitHub team (e.g. "
+            "'@org/slug') to a summary string. When provided, the summary is "
+            "appended to that team's Slack message verbatim."
+        ),
+        default=None,
+    )
     args = parser.parse_args()
     pull = get_pull_request()
     dry_run = args.dry_run
@@ -311,6 +338,7 @@ def main() -> None:
             args.github_team_to_slack_channels,
             args.github_team_to_slack_channels_help_msg,
             args.only_notify_team,
+            args.summary_json_path,
         )
 
     if comment:

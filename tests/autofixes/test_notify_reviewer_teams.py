@@ -53,6 +53,32 @@ def test_create_slack_message(mock_pull_request: PullRequest) -> None:
     assert "(none assigned)" in message
 
 
+def test_create_slack_message_with_summary(mock_pull_request: PullRequest) -> None:
+    review_request = ReviewRequest(
+        team="@Greenbax/test-team",
+        channel="test-channel",
+        slack_id="U123",
+        pull_request=mock_pull_request,
+        reviewers=[],
+        summary="Added a feature flag constant.",
+    )
+    message = create_slack_message(review_request)
+    # The summary is appended verbatim; the caller decides any prefix/wording.
+    assert message.endswith("\nAdded a feature flag constant.")
+
+
+def test_create_slack_message_without_summary(mock_pull_request: PullRequest) -> None:
+    review_request = ReviewRequest(
+        team="@Greenbax/test-team",
+        channel="test-channel",
+        slack_id="U123",
+        pull_request=mock_pull_request,
+        reviewers=[],
+    )
+    message = create_slack_message(review_request)
+    assert message.endswith("Thanks! 🙏")
+
+
 def test_create_slack_message_no_slack_id(mock_pull_request: PullRequest) -> None:
     review_request = ReviewRequest(
         team="@Greenbax/test-team",
@@ -151,6 +177,42 @@ def test_process_review_request_success(
     assert success
     assert "test-channel" in comment
     mock_post_message.assert_called_once()
+
+
+@patch(
+    "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
+)
+@patch("bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message")
+def test_process_review_request_appends_summary(
+    mock_post_message: MagicMock,
+    mock_get_user_info: MagicMock,
+    mock_team: GithubTeam,
+    mock_pull_request: PullRequest,
+) -> None:
+    mock_get_user_info.return_value = ("icon_url", "username")
+    mock_team.get_members = MagicMock(return_value=[])  # type: ignore[method-assign]
+
+    def read_text(self: Path) -> str:
+        if str(self) == "summaries-path":
+            return dumps({"@Greenbax/test-team": "Bumped the dependency lockfile."})
+        return dumps({"@Greenbax/test-team": "test-channel"})
+
+    with patch("pathlib.Path.read_text", read_text):
+        _comment, success = process_review_request(
+            mock_team,
+            mock_pull_request,
+            "U123",
+            dry_run="test-channel",
+            github_team_to_slack_channels_path=Path("test-path"),
+            github_team_to_slack_channels_help_msg="",
+            individual_reviewers=[],
+            github_login_to_slack_ids_path=Path("test-path-login"),
+            summary_json_path=Path("summaries-path"),
+        )
+
+    assert success
+    message_text = mock_post_message.call_args.kwargs["text"]
+    assert message_text.endswith("\nBumped the dependency lockfile.")
 
 
 @patch(
