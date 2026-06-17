@@ -42,6 +42,10 @@ class ReviewRequest:
     is_random_assignment: bool = False
     is_blame_suggestion: bool = False
     summary: str | None = None
+    # Slack IDs from git blame to surface as a secondary "recently touched"
+    # note alongside explicitly assigned reviewers. Empty when blame is already
+    # the primary suggestion (is_blame_suggestion) or when there are none.
+    blame_reviewers: list[str] | None = None
 
 
 def create_slack_message(review_request: ReviewRequest) -> str:
@@ -78,6 +82,10 @@ def create_slack_message(review_request: ReviewRequest) -> str:
         f"team ({reviewer_text}) is required. Thanks! 🙏"
     )
 
+    if review_request.blame_reviewers:
+        blame_mentions = [f"<@{r}>" for r in review_request.blame_reviewers]
+        message += f"\n{' or '.join(blame_mentions)} recently touched these lines."
+
     if review_request.summary:
         message += f"\n{review_request.summary}"
 
@@ -101,7 +109,7 @@ def get_suggested_reviewers_for_team(
     return mapping.get(team, [])
 
 
-def process_review_request(  # noqa: PLR0917, PLR0914
+def process_review_request(  # noqa: PLR0912, PLR0914, PLR0917
     request: Team,
     pull_request: PullRequest,
     slack_id: str | None,
@@ -144,24 +152,37 @@ def process_review_request(  # noqa: PLR0917, PLR0914
             if reviewer_slack_id:
                 reviewer_slack_ids.append(reviewer_slack_id)
 
+        # git-blame suggestions for this team, filtered to current members and
+        # excluding the PR author.
+        suggested = [
+            login
+            for login in get_suggested_reviewers_for_team(
+                team, suggested_reviewers_json_path
+            )
+            if login in team_members and login != pull_request.user.login
+        ]
+
         # Track how reviewers were chosen, which changes the message wording.
         is_random = False
         is_blame_suggestion = False
+        blame_reviewer_slack_ids: list[str] = []
 
-        # If no reviewers assigned, prefer pre-computed suggestions (e.g. from
-        # git blame), filtered to current team members; otherwise pick randomly.
-        if not reviewer_slack_ids and team_members:
+        if reviewer_slack_ids:
+            # Reviewers are explicitly assigned. Keep them as the primary
+            # mention and surface blame suggestions as a secondary note, minus
+            # anyone already assigned.
+            assigned = set(reviewer_slack_ids)
+            for github_login in suggested:
+                blame_slack_id = get_id_from_mapping_path(
+                    github_login, github_login_to_slack_ids_path
+                )
+                if blame_slack_id and blame_slack_id not in assigned:
+                    blame_reviewer_slack_ids.append(blame_slack_id)
+        elif team_members:
+            # No reviewers assigned: prefer blame suggestions, else random pick.
             team_members_list = [
                 m for m in team_members if m != pull_request.user.login
             ]
-            suggested = [
-                login
-                for login in get_suggested_reviewers_for_team(
-                    team, suggested_reviewers_json_path
-                )
-                if login in team_members and login != pull_request.user.login
-            ]
-
             if suggested:
                 is_blame_suggestion = True
                 chosen = suggested
@@ -194,6 +215,7 @@ def process_review_request(  # noqa: PLR0917, PLR0914
             is_random_assignment=is_random,
             is_blame_suggestion=is_blame_suggestion,
             summary=summary,
+            blame_reviewers=blame_reviewer_slack_ids,
         )
         message = create_slack_message(review_request)
         if slack_id:

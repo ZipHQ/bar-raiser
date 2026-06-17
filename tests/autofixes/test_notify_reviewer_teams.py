@@ -152,6 +152,23 @@ def test_create_slack_message_with_blame_suggestion(
     )
 
 
+def test_create_slack_message_with_blame_secondary_note(
+    mock_pull_request: PullRequest,
+) -> None:
+    review_request = ReviewRequest(
+        team="@Greenbax/test-team",
+        channel="test-channel",
+        slack_id="U123",
+        pull_request=mock_pull_request,
+        reviewers=["U_ALICE"],
+        blame_reviewers=["U_BOB"],
+    )
+    message = create_slack_message(review_request)
+    # Assigned reviewer stays primary; blame surfaces as a secondary note.
+    assert "(assigned to <@U_ALICE>)" in message
+    assert "<@U_BOB> recently touched these lines." in message
+
+
 def test_create_slack_message_with_single_reviewer(
     mock_pull_request: PullRequest,
 ) -> None:
@@ -301,6 +318,105 @@ def test_process_review_request_prefers_suggested_over_random(  # noqa: PLR0917
     mock_random.assert_not_called()
     message_text = mock_post_message.call_args.kwargs["text"]
     assert "since they recently touched these lines" in message_text
+
+
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
+@patch(
+    "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
+)
+@patch("bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message")
+def test_process_review_request_shows_blame_note_with_assigned_reviewers(
+    mock_post_message: MagicMock,
+    mock_get_user_info: MagicMock,
+    mock_get_slack_id: MagicMock,
+    mock_team: GithubTeam,
+    mock_pull_request: PullRequest,
+) -> None:
+    """Assigned reviewer stays primary; blame is added as a secondary note."""
+    mock_get_user_info.return_value = ("icon_url", "username")
+
+    alice = MagicMock()
+    alice.login = "alice"
+    bob = MagicMock()
+    bob.login = "bob"
+    mock_team.get_members = MagicMock(return_value=[alice, bob])  # type: ignore[method-assign]
+
+    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
+        return {
+            "@Greenbax/test-team": "test-channel",
+            "alice": "U_ALICE",
+            "bob": "U_BOB",
+        }.get(github_login)
+
+    mock_get_slack_id.side_effect = slack_id_lookup
+
+    with patch(
+        "bar_raiser.autofixes.notify_reviewer_teams.get_suggested_reviewers_for_team",
+        return_value=["bob"],
+    ):
+        _comment, success = process_review_request(
+            mock_team,
+            mock_pull_request,
+            "U123",
+            dry_run="test-channel",
+            github_team_to_slack_channels_path=Path("test-path"),
+            github_team_to_slack_channels_help_msg="",
+            individual_reviewers=["alice"],
+            github_login_to_slack_ids_path=Path("test-path-login"),
+            suggested_reviewers_json_path=Path("suggested.json"),
+        )
+
+    assert success
+    message_text = mock_post_message.call_args.kwargs["text"]
+    assert "(assigned to <@U_ALICE>)" in message_text
+    assert "<@U_BOB> recently touched these lines." in message_text
+
+
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
+@patch(
+    "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
+)
+@patch("bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message")
+def test_process_review_request_blame_note_excludes_assigned_overlap(
+    mock_post_message: MagicMock,
+    mock_get_user_info: MagicMock,
+    mock_get_slack_id: MagicMock,
+    mock_team: GithubTeam,
+    mock_pull_request: PullRequest,
+) -> None:
+    """A blame author already assigned isn't repeated in the secondary note."""
+    mock_get_user_info.return_value = ("icon_url", "username")
+
+    alice = MagicMock()
+    alice.login = "alice"
+    mock_team.get_members = MagicMock(return_value=[alice])  # type: ignore[method-assign]
+
+    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
+        return {"@Greenbax/test-team": "test-channel", "alice": "U_ALICE"}.get(
+            github_login
+        )
+
+    mock_get_slack_id.side_effect = slack_id_lookup
+
+    with patch(
+        "bar_raiser.autofixes.notify_reviewer_teams.get_suggested_reviewers_for_team",
+        return_value=["alice"],
+    ):
+        _comment, success = process_review_request(
+            mock_team,
+            mock_pull_request,
+            "U123",
+            dry_run="test-channel",
+            github_team_to_slack_channels_path=Path("test-path"),
+            github_team_to_slack_channels_help_msg="",
+            individual_reviewers=["alice"],
+            github_login_to_slack_ids_path=Path("test-path-login"),
+            suggested_reviewers_json_path=Path("suggested.json"),
+        )
+
+    assert success
+    message_text = mock_post_message.call_args.kwargs["text"]
+    assert "recently touched these lines" not in message_text
     assert "<@U_ALICE>" in message_text
     assert "U_BOB" not in message_text
 
