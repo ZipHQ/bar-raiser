@@ -4,6 +4,7 @@ import random
 import sys
 from argparse import ArgumentParser
 from dataclasses import dataclass
+from json import loads
 from logging import getLogger
 from os import environ
 from pathlib import Path
@@ -39,6 +40,7 @@ class ReviewRequest:
     pull_request: PullRequest
     reviewers: list[str]
     is_random_assignment: bool = False
+    is_blame_suggestion: bool = False
     summary: str | None = None
 
 
@@ -47,7 +49,14 @@ def create_slack_message(review_request: ReviewRequest) -> str:
     if review_request.reviewers:
         reviewer_mentions = [f"<@{reviewer}>" for reviewer in review_request.reviewers]
 
-        if review_request.is_random_assignment:
+        if review_request.is_blame_suggestion:
+            # Suggested from git blame: "maybe @alice or @bob since they
+            # recently touched these lines"
+            reviewer_text = (
+                f"maybe {' or '.join(reviewer_mentions)} "
+                "since they recently touched these lines"
+            )
+        elif review_request.is_random_assignment:
             # Randomly assigned reviewers: "maybe @alice or @bob"
             reviewer_text = f"maybe {' or '.join(reviewer_mentions)}"
         else:
@@ -75,6 +84,23 @@ def create_slack_message(review_request: ReviewRequest) -> str:
     return message
 
 
+def get_suggested_reviewers_for_team(
+    team: str, suggested_reviewers_json_path: Path | None
+) -> list[str]:
+    """Return pre-computed suggested reviewer logins for a team, if any.
+
+    The JSON maps a GitHub team (``@org/slug``) to a list of GitHub logins
+    (e.g. from git blame). Returns an empty list when the file or key is
+    absent so the caller falls back to the random pick.
+    """
+    if suggested_reviewers_json_path is None:
+        return []
+    mapping: dict[str, list[str]] = loads(  # noqa: PLW1514
+        suggested_reviewers_json_path.read_text()
+    )
+    return mapping.get(team, [])
+
+
 def process_review_request(  # noqa: PLR0917, PLR0914
     request: Team,
     pull_request: PullRequest,
@@ -85,6 +111,7 @@ def process_review_request(  # noqa: PLR0917, PLR0914
     individual_reviewers: list[str],
     github_login_to_slack_ids_path: Path,
     summary_json_path: Path | None = None,
+    suggested_reviewers_json_path: Path | None = None,
 ) -> tuple[str, bool]:
     """Process a single review request and return the comment and success status."""
     team = f"@{request.organization.login}/{request.slug}"
@@ -117,28 +144,40 @@ def process_review_request(  # noqa: PLR0917, PLR0914
             if reviewer_slack_id:
                 reviewer_slack_ids.append(reviewer_slack_id)
 
-        # Track if we are doing random assignment
+        # Track how reviewers were chosen, which changes the message wording.
         is_random = False
+        is_blame_suggestion = False
 
-        # If no reviewers assigned, randomly pick 2 from the team
+        # If no reviewers assigned, prefer pre-computed suggestions (e.g. from
+        # git blame), filtered to current team members; otherwise pick randomly.
         if not reviewer_slack_ids and team_members:
-            is_random = True
             team_members_list = [
                 m for m in team_members if m != pull_request.user.login
             ]
-            num_to_pick = min(2, len(team_members_list))
-            random_members = random.sample(team_members_list, num_to_pick)
+            suggested = [
+                login
+                for login in get_suggested_reviewers_for_team(
+                    team, suggested_reviewers_json_path
+                )
+                if login in team_members and login != pull_request.user.login
+            ]
 
-            for github_login in random_members:
+            if suggested:
+                is_blame_suggestion = True
+                chosen = suggested
+                logger.info(f"Suggested reviewers from team {team} via git blame")
+            else:
+                is_random = True
+                num_to_pick = min(2, len(team_members_list))
+                chosen = random.sample(team_members_list, num_to_pick)
+                logger.info(f"Randomly suggested reviewers from team {team}")
+
+            for github_login in chosen:
                 reviewer_slack_id = get_id_from_mapping_path(
                     github_login, github_login_to_slack_ids_path
                 )
                 if reviewer_slack_id:
                     reviewer_slack_ids.append(reviewer_slack_id)
-
-            logger.info(
-                f"Randomly assigned {len(reviewer_slack_ids)} reviewers from team {team}"
-            )
 
         summary = (
             get_id_from_mapping_path(team, summary_json_path)
@@ -153,6 +192,7 @@ def process_review_request(  # noqa: PLR0917, PLR0914
             pull_request=pull_request,
             reviewers=reviewer_slack_ids,
             is_random_assignment=is_random,
+            is_blame_suggestion=is_blame_suggestion,
             summary=summary,
         )
         message = create_slack_message(review_request)
@@ -186,6 +226,7 @@ def process_pull_request(  # noqa: PLR0917, PLR0912
     github_team_to_slack_channels_help_msg: str,
     only_notify_team_slug: str | None,
     summary_json_path: Path | None = None,
+    suggested_reviewers_json_path: Path | None = None,
 ) -> str:
     """Process all review requests for a pull request."""
     author_login = pull_request.user.login
@@ -238,6 +279,7 @@ def process_pull_request(  # noqa: PLR0917, PLR0912
                             individual_reviewers,
                             github_login_to_slack_ids_path,
                             summary_json_path,
+                            suggested_reviewers_json_path,
                         )
                         if single_request_comment:
                             accumulated_comments += single_request_comment
@@ -258,6 +300,7 @@ def process_pull_request(  # noqa: PLR0917, PLR0912
                         individual_reviewers,
                         github_login_to_slack_ids_path,
                         summary_json_path,
+                        suggested_reviewers_json_path,
                     )
                     if single_request_comment:
                         accumulated_comments += single_request_comment
@@ -317,6 +360,18 @@ def main() -> None:
         ),
         default=None,
     )
+    parser.add_argument(
+        "--suggested-reviewers-json",
+        type=Path,
+        help=(
+            "Optional path to a JSON file mapping a GitHub team (e.g. "
+            "'@org/slug') to a list of GitHub logins to suggest as reviewers "
+            "(e.g. from git blame). When a team has suggestions and no explicit "
+            "reviewer, these are used instead of a random pick and the message "
+            "reads 'maybe @x or @y since they recently touched these lines'."
+        ),
+        default=None,
+    )
     args = parser.parse_args()
     pull = get_pull_request()
     dry_run = args.dry_run
@@ -339,6 +394,7 @@ def main() -> None:
             args.github_team_to_slack_channels_help_msg,
             args.only_notify_team,
             args.summary_json_path,
+            args.suggested_reviewers_json,
         )
 
     if comment:
