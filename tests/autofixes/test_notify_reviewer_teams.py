@@ -301,8 +301,60 @@ def test_process_review_request_prefers_suggested_over_random(  # noqa: PLR0917
     mock_random.assert_not_called()
     message_text = mock_post_message.call_args.kwargs["text"]
     assert "since they recently touched these lines" in message_text
-    assert "<@U_ALICE>" in message_text
-    assert "U_BOB" not in message_text
+
+
+@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
+@patch(
+    "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
+)
+@patch("bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message")
+def test_process_review_request_blame_overrides_assigned(
+    mock_post_message: MagicMock,
+    mock_get_user_info: MagicMock,
+    mock_get_slack_id: MagicMock,
+    mock_team: GithubTeam,
+    mock_pull_request: PullRequest,
+) -> None:
+    """Blame suggestion overrides GitHub's assigned reviewer."""
+    mock_get_user_info.return_value = ("icon_url", "username")
+
+    alice = MagicMock()
+    alice.login = "alice"
+    bob = MagicMock()
+    bob.login = "bob"
+    mock_team.get_members = MagicMock(return_value=[alice, bob])  # type: ignore[method-assign]
+
+    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
+        return {
+            "@Greenbax/test-team": "test-channel",
+            "alice": "U_ALICE",
+            "bob": "U_BOB",
+        }.get(github_login)
+
+    mock_get_slack_id.side_effect = slack_id_lookup
+
+    # alice is GitHub's assigned reviewer, but blame points at bob.
+    with patch(
+        "bar_raiser.autofixes.notify_reviewer_teams.get_suggested_reviewers_for_team",
+        return_value=["bob"],
+    ):
+        _comment, success = process_review_request(
+            mock_team,
+            mock_pull_request,
+            "U123",
+            dry_run="test-channel",
+            github_team_to_slack_channels_path=Path("test-path"),
+            github_team_to_slack_channels_help_msg="",
+            individual_reviewers=["alice"],
+            github_login_to_slack_ids_path=Path("test-path-login"),
+            suggested_reviewers_json_path=Path("suggested.json"),
+        )
+
+    assert success
+    message_text = mock_post_message.call_args.kwargs["text"]
+    # Blame (bob) wins, with the "recently touched" wording; alice is dropped.
+    assert "<@U_BOB> since they recently touched these lines" in message_text
+    assert "U_ALICE" not in message_text
 
 
 @patch(

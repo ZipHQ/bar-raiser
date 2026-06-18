@@ -101,7 +101,7 @@ def get_suggested_reviewers_for_team(
     return mapping.get(team, [])
 
 
-def process_review_request(  # noqa: PLR0917, PLR0914
+def process_review_request(  # noqa: PLR0912, PLR0914, PLR0917
     request: Team,
     pull_request: PullRequest,
     slack_id: str | None,
@@ -129,55 +129,53 @@ def process_review_request(  # noqa: PLR0917, PLR0914
         channel = dry_run
 
     if channel:
-        # Filter reviewers to only include members of this team
         team_members = {member.login for member in request.get_members()}
-        filtered_github_reviewers = [
-            r for r in individual_reviewers if r in team_members
-        ]
 
-        # Convert GitHub logins to Slack IDs
-        reviewer_slack_ids: list[str] = []
-        for github_login in filtered_github_reviewers:
-            reviewer_slack_id = get_id_from_mapping_path(
-                github_login, github_login_to_slack_ids_path
+        # git-blame suggestions for this team, filtered to current members and
+        # excluding the PR author.
+        suggested = [
+            login
+            for login in get_suggested_reviewers_for_team(
+                team, suggested_reviewers_json_path
             )
-            if reviewer_slack_id:
-                reviewer_slack_ids.append(reviewer_slack_id)
+            if login in team_members and login != pull_request.user.login
+        ]
 
         # Track how reviewers were chosen, which changes the message wording.
         is_random = False
         is_blame_suggestion = False
 
-        # If no reviewers assigned, prefer pre-computed suggestions (e.g. from
-        # git blame), filtered to current team members; otherwise pick randomly.
-        if not reviewer_slack_ids and team_members:
-            team_members_list = [
-                m for m in team_members if m != pull_request.user.login
-            ]
-            suggested = [
-                login
-                for login in get_suggested_reviewers_for_team(
-                    team, suggested_reviewers_json_path
-                )
-                if login in team_members and login != pull_request.user.login
-            ]
-
-            if suggested:
-                is_blame_suggestion = True
-                chosen = suggested
-                logger.info(f"Suggested reviewers from team {team} via git blame")
-            else:
+        # Reviewer precedence: git blame > GitHub's assigned reviewers > random.
+        # Blame overrides the assigned reviewers because GitHub auto-assignment
+        # is round-robin/random and weaker than "who last touched these lines";
+        # the assigned reviewer already got GitHub's notification and any team
+        # member's approval satisfies the CODEOWNERS requirement anyway.
+        if suggested:
+            is_blame_suggestion = True
+            chosen = suggested
+            logger.info(f"Suggested reviewers from team {team} via git blame")
+        else:
+            assigned = [r for r in individual_reviewers if r in team_members]
+            if assigned:
+                chosen = assigned
+            elif team_members:
                 is_random = True
+                team_members_list = [
+                    m for m in team_members if m != pull_request.user.login
+                ]
                 num_to_pick = min(2, len(team_members_list))
                 chosen = random.sample(team_members_list, num_to_pick)
                 logger.info(f"Randomly suggested reviewers from team {team}")
+            else:
+                chosen = []
 
-            for github_login in chosen:
-                reviewer_slack_id = get_id_from_mapping_path(
-                    github_login, github_login_to_slack_ids_path
-                )
-                if reviewer_slack_id:
-                    reviewer_slack_ids.append(reviewer_slack_id)
+        reviewer_slack_ids: list[str] = []
+        for github_login in chosen:
+            reviewer_slack_id = get_id_from_mapping_path(
+                github_login, github_login_to_slack_ids_path
+            )
+            if reviewer_slack_id:
+                reviewer_slack_ids.append(reviewer_slack_id)
 
         summary = (
             get_id_from_mapping_path(team, summary_json_path)
