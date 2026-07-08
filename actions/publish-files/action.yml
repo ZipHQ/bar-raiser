@@ -30,7 +30,7 @@ inputs:
       "Whether a transient failure reading the last-run-date throttle artifact should be tolerated
       (job continues and publishes) rather than failing the job."
     required: false
-    default: true
+    default: false
 runs:
   using: "composite"
   steps:
