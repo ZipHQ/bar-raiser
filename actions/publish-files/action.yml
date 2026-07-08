@@ -25,6 +25,12 @@ inputs:
     description: "Interval in seconds to check if an update has already been made"
     required: false
     default: 86400
+  continue-on-error:
+    description:
+      "Whether a transient failure reading the last-run-date throttle artifact should be tolerated
+      (job continues and publishes) rather than failing the job."
+    required: false
+    default: true
 runs:
   using: "composite"
   steps:
@@ -40,7 +46,7 @@ runs:
       # fail the whole job. On error, fall through: the next step treats a missing
       # last-run-date as "no prior run" and simply publishes (worst case, an extra
       # publish within the interval window).
-      continue-on-error: true
+      continue-on-error: ${{ inputs.continue-on-error }}
       with:
         github_token: ${{ inputs.github-token }}
         workflow: ${{ env.GITHUB_WORKFLOW }}
