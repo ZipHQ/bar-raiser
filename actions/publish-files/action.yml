@@ -42,10 +42,6 @@ runs:
         token: ${{ inputs.github-token }}
     - name: Download last-run-date.txt from the previous workflow run
       uses: dawidd6/action-download-artifact@v4
-      # A transient network reset while reading this throttle artifact should not
-      # fail the whole job. On error, fall through: the next step treats a missing
-      # last-run-date as "no prior run" and simply publishes (worst case, an extra
-      # publish within the interval window).
       continue-on-error: ${{ inputs.continue-on-error }}
       with:
         github_token: ${{ inputs.github-token }}
