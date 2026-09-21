@@ -13,6 +13,7 @@ from bar_raiser.autofixes.notify_reviewer_teams import (
     LABEL_TO_REMOVE,
     ReviewRequest,
     create_slack_message,
+    get_excluded_reviewer_logins,
     get_suggested_reviewers_for_team,
     main,
     process_pull_request,
@@ -247,6 +248,147 @@ def test_get_suggested_reviewers_for_team() -> None:
             == []
         )
     assert get_suggested_reviewers_for_team("@Greenbax/test-team", None) == []
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, set()),
+        ("", set()),
+        (" , ", set()),
+        (" Alice, BOB,alice, ", {"alice", "bob"}),
+    ],
+)
+def test_get_excluded_reviewer_logins(
+    monkeypatch: pytest.MonkeyPatch, value: str | None, expected: set[str]
+) -> None:
+    if value is None:
+        monkeypatch.delenv("EXCLUDED_REVIEWER_LOGINS", raising=False)
+    else:
+        monkeypatch.setenv("EXCLUDED_REVIEWER_LOGINS", value)
+
+    assert get_excluded_reviewer_logins() == expected
+
+
+@pytest.mark.parametrize(
+    "review_source",
+    ["blame", "assigned", "random", "excluded_fallback", "all_excluded"],
+)
+def test_process_review_request_excludes_reviewers(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mock_team: GithubTeam,
+    mock_pull_request: PullRequest,
+    review_source: str,
+) -> None:
+    monkeypatch.setenv("EXCLUDED_REVIEWER_LOGINS", " alice ")
+    mapping_path = tmp_path / "mapping.json"
+    mapping_path.write_text(
+        dumps({
+            "@Greenbax/test-team": "test-channel",
+            "ALIce": "U_ALICE",
+            "bob": "U_BOB",
+            "carol": "U_CAROL",
+        })
+    )
+    suggested_path = tmp_path / "suggested.json"
+    suggested_path.write_text(
+        dumps({
+            "@Greenbax/test-team": {
+                "blame": ["ALIce", "bob"],
+                "excluded_fallback": ["ALIce"],
+            }.get(review_source, [])
+        })
+    )
+    members = [MagicMock(login="ALIce")]
+    if review_source != "all_excluded":
+        members.extend([MagicMock(login="bob"), MagicMock(login="carol")])
+    assigned = {
+        "assigned": ["ALIce", "bob"],
+        "excluded_fallback": ["ALIce"],
+    }.get(review_source, [])
+
+    with (
+        patch.object(mock_team, "get_members", return_value=members),
+        patch(
+            "bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message"
+        ) as post_message,
+    ):
+        _, success = process_review_request(
+            mock_team,
+            mock_pull_request,
+            None,
+            dry_run="",
+            github_team_to_slack_channels_path=mapping_path,
+            github_team_to_slack_channels_help_msg="",
+            individual_reviewers=assigned,
+            github_login_to_slack_ids_path=mapping_path,
+            suggested_reviewers_json_path=suggested_path,
+        )
+
+    assert success
+    post_message.assert_called_once()
+    message = post_message.call_args.kwargs["text"]
+    assert "U_ALICE" not in message
+    if review_source == "all_excluded":
+        assert "(none assigned)" in message
+    elif review_source == "blame":
+        assert "(maybe <@U_BOB> since they recently touched these lines)" in message
+    elif review_source == "assigned":
+        assert "(assigned to <@U_BOB>)" in message
+    else:
+        assert "(maybe " in message
+        assert "<@U_BOB>" in message
+        assert "<@U_CAROL>" in message
+
+
+def test_excluded_author_can_request_review(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("EXCLUDED_REVIEWER_LOGINS", "alice")
+    mapping_path = tmp_path / "mapping.json"
+    mapping_path.write_text(
+        dumps({
+            "@Greenbax/test-team": "test-channel",
+            "ALIce": "U_ALICE",
+            "bob": "U_BOB",
+        })
+    )
+    team = MagicMock(spec=GithubTeam)
+    team.organization.login = "Greenbax"
+    team.slug = "test-team"
+    team.get_members.return_value = [
+        MagicMock(login="ALIce"),
+        MagicMock(login="bob"),
+    ]
+    pull = MagicMock(spec=PullRequest)
+    pull.user.login = "ALIce"
+    pull.get_review_requests.return_value = ([team], [])
+
+    with (
+        patch(
+            "bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message"
+        ) as post_message,
+        patch(
+            "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username",
+            return_value=("icon", "Alice"),
+        ),
+    ):
+        comment = process_pull_request(
+            pull,
+            dry_run="",
+            github_login_to_slack_ids_path=mapping_path,
+            github_login_to_slack_ids_help_msg="",
+            github_team_to_slack_channels_path=mapping_path,
+            github_team_to_slack_channels_help_msg="",
+            only_notify_team_slug=None,
+        )
+
+    assert "Sent message" in comment
+    post_message.assert_called_once()
+    message = post_message.call_args.kwargs["text"]
+    assert "<@U_ALICE>'s" in message
+    assert "(maybe <@U_BOB>)" in message
 
 
 @patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")

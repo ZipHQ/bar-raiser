@@ -32,6 +32,14 @@ logger = getLogger(__name__)
 LABEL_TO_REMOVE = "autofix-notify-reviewer-teams"
 
 
+def get_excluded_reviewer_logins() -> set[str]:
+    return {
+        login.strip().casefold()
+        for login in environ.get("EXCLUDED_REVIEWER_LOGINS", "").split(",")
+        if login.strip()
+    }
+
+
 @dataclass
 class ReviewRequest:
     team: str
@@ -129,7 +137,12 @@ def process_review_request(  # noqa: PLR0912, PLR0914, PLR0917
         channel = dry_run
 
     if channel:
-        team_members = {member.login for member in request.get_members()}
+        excluded_logins = get_excluded_reviewer_logins()
+        team_members = {
+            member.login
+            for member in request.get_members()
+            if member.login.casefold() not in excluded_logins
+        }
 
         # git-blame suggestions for this team, filtered to current members and
         # excluding the PR author.

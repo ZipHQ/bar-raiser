@@ -39,6 +39,15 @@ The following checks are available and can be configured in a CI workflow e.g. [
 - **Pyright Integration**: Runs Pyright type checker, parses the output, and creates GitHub check runs with annotations and actions.
 - **Autofix Support**: Provides an autofix action to automatically fix issues detected by Pyright.
 
+### Reviewer Notification Exclusions
+
+Set `EXCLUDED_REVIEWER_LOGINS` to comma-separated GitHub logins when running
+`bar_raiser.autofixes.notify_reviewer_teams`, for example `alice,bob`. Matching
+ignores case and surrounding whitespace. Excluded users are omitted from blame
+suggestions, assigned reviewer mentions, and random reviewer suggestions. Their
+Slack identity mapping remains available when they request reviews on their own
+PRs. GitHub review requests and team membership remain unchanged.
+
 ## Getting Started (For Developers)
 
 ### Prerequisites
