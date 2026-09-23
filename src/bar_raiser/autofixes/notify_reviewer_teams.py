@@ -8,7 +8,7 @@ from json import loads
 from logging import getLogger
 from os import environ
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from github.Team import Team
 
@@ -32,6 +32,25 @@ logger = getLogger(__name__)
 LABEL_TO_REMOVE = "autofix-notify-reviewer-teams"
 
 
+class OwnedFile(TypedDict):
+    name: str
+    url: str
+
+
+class OwnedChanges(TypedDict):
+    """One team's entry in the --owned-changes-json file.
+
+    Produced by evergreen's `generate_team_summaries.py`; `summary` may contain
+    backtick-quoted code spans.
+    """
+
+    summary: str
+    files: list[OwnedFile]
+    more_files: int
+    additions: int
+    deletions: int
+
+
 @dataclass
 class ReviewRequest:
     team: str
@@ -42,6 +61,7 @@ class ReviewRequest:
     is_random_assignment: bool = False
     is_blame_suggestion: bool = False
     summary: str | None = None
+    owned_changes: OwnedChanges | None = None
 
 
 def create_slack_message(review_request: ReviewRequest) -> str:
@@ -84,6 +104,136 @@ def create_slack_message(review_request: ReviewRequest) -> str:
     return message
 
 
+def _escape_mrkdwn(text: str) -> str:
+    """Escape the three characters Slack treats as control characters in mrkdwn."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _reviewer_field(review_request: ReviewRequest, team_slug: str) -> str:
+    """Render the reviewer column, labeled by how the reviewers were chosen."""
+    if not review_request.reviewers:
+        return f"*Reviewer*\nAnyone on {team_slug}"
+    mentions = ", ".join(f"<@{reviewer}>" for reviewer in review_request.reviewers)
+    if review_request.is_blame_suggestion or review_request.is_random_assignment:
+        label = (
+            "Suggested reviewer"
+            if len(review_request.reviewers) == 1
+            else "Suggested reviewers"
+        )
+    else:
+        label = "Assigned"
+    return f"*{label}*\n{mentions}"
+
+
+def _summary_elements(summary: str) -> list[dict[str, Any]]:
+    """Split a summary on backticks into rich_text elements.
+
+    rich_text doesn't parse mrkdwn, so backtick spans become code-styled text
+    elements instead of showing literal backticks. An unmatched trailing
+    backtick is kept as plain text.
+    """
+    parts = summary.split("`")
+    if len(parts) % 2 == 0:
+        parts = [*parts[:-2], f"{parts[-2]}`{parts[-1]}"]
+    elements: list[dict[str, Any]] = []
+    for index, part in enumerate(parts):
+        if not part:
+            continue
+        element: dict[str, Any] = {"type": "text", "text": part}
+        if index % 2 == 1:
+            element["style"] = {"code": True}
+        elements.append(element)
+    return elements
+
+
+def _owned_changes_block(
+    owned_changes: OwnedChanges, pull_request_url: str
+) -> dict[str, Any]:
+    """Render the "Owned-file change" section: summary, linked files, diffstat."""
+    elements: list[dict[str, Any]] = [
+        {"type": "text", "text": "Owned-file change\n", "style": {"bold": True}},
+        *_summary_elements(owned_changes["summary"]),
+        {"type": "text", "text": " · "},
+    ]
+    for index, owned_file in enumerate(owned_changes["files"]):
+        if index:
+            elements.append({"type": "text", "text": " "})
+        elements.append({
+            "type": "link",
+            "url": owned_file["url"],
+            "text": owned_file["name"],
+            "style": {"code": True},
+        })
+    if owned_changes["more_files"]:
+        elements.append({
+            "type": "link",
+            "url": f"{pull_request_url}/files",
+            "text": f" +{owned_changes['more_files']} more",
+        })
+    if owned_changes["files"] or owned_changes["more_files"]:
+        elements.append({"type": "text", "text": " "})
+    elements.append({
+        "type": "text",
+        "text": f"+{owned_changes['additions']}/-{owned_changes['deletions']}",
+        "style": {"code": True},
+    })
+    return {
+        "type": "rich_text",
+        "elements": [{"type": "rich_text_section", "elements": elements}],
+    }
+
+
+def create_slack_blocks(
+    review_request: ReviewRequest,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Build the labeled review-ping layout as Block Kit.
+
+    Returns `(fallback_text, blocks)`. The fallback is what Slack shows in
+    notifications and the sidebar, so it carries the headline without markup.
+
+    Layout:
+    - headline: "Review needed from <team>:" + linked PR title
+    - two columns: reviewer(s) and author (author omitted without a Slack ID)
+    - "Owned-file change", only when the team has an owned-changes entry
+    """
+    pull_request = review_request.pull_request
+    team_slug = review_request.team.split("/")[-1]
+    title = pull_request.title
+    headline = (
+        f"*Review needed from {team_slug}:* "
+        f"<{pull_request.html_url}|{_escape_mrkdwn(title)}> (PR-{pull_request.number})"
+    )
+    fields = [{"type": "mrkdwn", "text": _reviewer_field(review_request, team_slug)}]
+    if review_request.slack_id:
+        fields.append({
+            "type": "mrkdwn",
+            "text": f"*Author*\n<@{review_request.slack_id}>",
+        })
+    blocks: list[dict[str, Any]] = [
+        {"type": "section", "text": {"type": "mrkdwn", "text": headline}},
+        {"type": "section", "fields": fields},
+    ]
+    if review_request.owned_changes:
+        blocks.append(
+            _owned_changes_block(review_request.owned_changes, pull_request.html_url)
+        )
+    fallback = (
+        f"Review needed from {team_slug}: {_escape_mrkdwn(title)} "
+        f"(PR-{pull_request.number})"
+    )
+    return fallback, blocks
+
+
+def get_owned_changes_for_team(
+    team: str, owned_changes_json_path: Path
+) -> OwnedChanges | None:
+    """Return the team's owned-changes entry, or None when the team has none."""
+    mapping: dict[str, OwnedChanges] = loads(
+        owned_changes_json_path.read_text()  # noqa: PLW1514
+    )
+    return mapping.get(team)
+
+
 def get_suggested_reviewers_for_team(
     team: str, suggested_reviewers_json_path: Path | None
 ) -> list[str]:
@@ -112,6 +262,7 @@ def process_review_request(  # noqa: PLR0912, PLR0914, PLR0917
     github_login_to_slack_ids_path: Path,
     summary_json_path: Path | None = None,
     suggested_reviewers_json_path: Path | None = None,
+    owned_changes_json_path: Path | None = None,
 ) -> tuple[str, bool]:
     """Process a single review request and return the comment and success status."""
     team = f"@{request.organization.login}/{request.slug}"
@@ -193,7 +344,16 @@ def process_review_request(  # noqa: PLR0912, PLR0914, PLR0917
             is_blame_suggestion=is_blame_suggestion,
             summary=summary,
         )
-        message = create_slack_message(review_request)
+        # The owned-changes file opts this run into the labeled Block Kit
+        # layout; without it the plain-text message is unchanged.
+        blocks: list[dict[str, Any]] | None = None
+        if owned_changes_json_path is not None:
+            review_request.owned_changes = get_owned_changes_for_team(
+                team, owned_changes_json_path
+            )
+            message, blocks = create_slack_blocks(review_request)
+        else:
+            message = create_slack_message(review_request)
         if slack_id:
             icon_url, username = get_slack_user_icon_url_and_username(slack_id)
         else:
@@ -204,6 +364,7 @@ def process_review_request(  # noqa: PLR0912, PLR0914, PLR0917
             text=message,
             icon_url=icon_url,
             username=username,
+            blocks=blocks,
         )
 
         success_msg = f"Sent message to [Slack channel](https://try-evergreen.slack.com/archives/{channel}) for reviewer {team}.\n"
@@ -225,6 +386,7 @@ def process_pull_request(  # noqa: PLR0917, PLR0912
     only_notify_team_slug: str | None,
     summary_json_path: Path | None = None,
     suggested_reviewers_json_path: Path | None = None,
+    owned_changes_json_path: Path | None = None,
 ) -> str:
     """Process all review requests for a pull request."""
     author_login = pull_request.user.login
@@ -278,6 +440,7 @@ def process_pull_request(  # noqa: PLR0917, PLR0912
                             github_login_to_slack_ids_path,
                             summary_json_path,
                             suggested_reviewers_json_path,
+                            owned_changes_json_path,
                         )
                         if single_request_comment:
                             accumulated_comments += single_request_comment
@@ -299,6 +462,7 @@ def process_pull_request(  # noqa: PLR0917, PLR0912
                         github_login_to_slack_ids_path,
                         summary_json_path,
                         suggested_reviewers_json_path,
+                        owned_changes_json_path,
                     )
                     if single_request_comment:
                         accumulated_comments += single_request_comment
@@ -370,6 +534,18 @@ def main() -> None:
         ),
         default=None,
     )
+    parser.add_argument(
+        "--owned-changes-json",
+        type=Path,
+        help=(
+            "Optional path to a JSON file mapping a GitHub team (e.g. "
+            "'@org/slug') to its owned changes: summary, owned files with diff "
+            "links, and diffstat. When provided, messages use the labeled "
+            "Block Kit layout instead of the plain-text message, and "
+            "--summary-json-path is ignored."
+        ),
+        default=None,
+    )
     args = parser.parse_args()
     pull = get_pull_request()
     dry_run = args.dry_run
@@ -393,6 +569,7 @@ def main() -> None:
             args.only_notify_team,
             args.summary_json_path,
             args.suggested_reviewers_json,
+            args.owned_changes_json,
         )
 
     if comment:

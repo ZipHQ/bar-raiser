@@ -3,7 +3,7 @@ from __future__ import annotations
 from json import loads
 from logging import getLogger
 from os import environ
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from slack.web.client import WebClient
 
@@ -19,11 +19,16 @@ logger = getLogger(__name__)
 
 
 def post_a_slack_message(
-    channel: str, text: str, icon_url: str | None = None, username: str | None = None
+    channel: str,
+    text: str,
+    icon_url: str | None = None,
+    username: str | None = None,
+    blocks: list[dict[str, Any]] | None = None,
 ):
+    """Post a message; when `blocks` is given, `text` is the notification fallback."""
     client = WebClient(token=environ["SLACK_BOT_TOKEN"])
     client.chat_postMessage(  # pyright: ignore[reportUnknownMemberType]
-        channel=channel, text=text, icon_url=icon_url, username=username
+        channel=channel, text=text, icon_url=icon_url, username=username, blocks=blocks
     )
 
 

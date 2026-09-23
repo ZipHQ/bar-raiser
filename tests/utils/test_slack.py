@@ -20,7 +20,26 @@ def test_post_a_slack_message() -> None:
     with patch("bar_raiser.utils.slack.WebClient") as mock_web_client:
         post_a_slack_message(CHANNEL, "test message")
         mock_web_client.return_value.chat_postMessage.assert_called_with(
-            channel=CHANNEL, icon_url=None, text="test message", username=None
+            channel=CHANNEL,
+            icon_url=None,
+            text="test message",
+            username=None,
+            blocks=None,
+        )
+
+
+@patch.dict(environ, {"SLACK_BOT_TOKEN": "xxx"})
+def test_post_a_slack_message_with_blocks() -> None:
+    CHANNEL = "C06V783RYAA"
+    blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": "hi"}}]
+    with patch("bar_raiser.utils.slack.WebClient") as mock_web_client:
+        post_a_slack_message(CHANNEL, "fallback text", blocks=blocks)
+        mock_web_client.return_value.chat_postMessage.assert_called_with(
+            channel=CHANNEL,
+            icon_url=None,
+            text="fallback text",
+            username=None,
+            blocks=blocks,
         )
 
 
