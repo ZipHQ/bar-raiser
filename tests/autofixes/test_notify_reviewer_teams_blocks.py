@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 from github.PullRequest import PullRequest
@@ -15,9 +13,6 @@ from bar_raiser.autofixes.notify_reviewer_teams import (
     create_slack_blocks,
     process_review_request,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 PR_URL = "https://github.com/Greenbax/evergreen/pull/133091"
 
@@ -92,8 +87,9 @@ def test_headline_fields_and_fallback() -> None:
     fallback, blocks = create_slack_blocks(_request())
 
     assert fallback == (
-        "Review needed from p2p-po: [CO MCP] Preview draft intake CO changes "
-        "(PR-133091)"
+        f"Review needed from p2p-po: [CO MCP] Preview draft intake CO changes "
+        f"(PR-133091) {PR_URL} | Reviewers: <@UREV1>, <@UREV2> | "
+        "Split the builders, with `include_draft` controlling drafts"
     )
     assert blocks[0]["text"]["text"] == (
         f"*Review needed from p2p-po:* <{PR_URL}|[CO MCP] Preview draft intake CO "
@@ -103,6 +99,14 @@ def test_headline_fields_and_fallback() -> None:
         "*Suggested reviewers*\n<@UREV1>, <@UREV2>",
         "*Author*\n<@UAUTHOR>",
     ]
+
+
+def test_fallback_omits_reviewers_and_summary_when_absent() -> None:
+    fallback, _ = create_slack_blocks(_request(reviewers=[], owned_changes=None))
+    assert (
+        fallback
+        == f"Review needed from p2p-po: [CO MCP] Preview draft intake CO changes (PR-133091) {PR_URL}"
+    )
 
 
 def test_reviewer_label_follows_how_reviewers_were_chosen() -> None:
@@ -194,11 +198,6 @@ def _team(slug: str = "p2p-po") -> MagicMock:
     return team
 
 
-def _write(path: Path, data: object) -> Path:
-    path.write_text(json.dumps(data), encoding="utf-8")
-    return path
-
-
 @patch(
     "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
 )
@@ -206,13 +205,7 @@ def _write(path: Path, data: object) -> Path:
 def test_process_review_request_posts_blocks_with_owned_changes(
     mock_post_message: MagicMock,
     mock_get_user_info: MagicMock,
-    tmp_path: Path,
 ) -> None:
-    channels = _write(tmp_path / "channels.json", {"@Greenbax/p2p-po": "C123"})
-    logins = _write(tmp_path / "logins.json", {"reviewer": "UREV1"})
-    owned = _write(
-        tmp_path / "owned.json", {"@Greenbax/p2p-po": dict(_owned_changes())}
-    )
     mock_get_user_info.return_value = ("icon", "Author Name")
 
     _, ok = process_review_request(
@@ -220,11 +213,11 @@ def test_process_review_request_posts_blocks_with_owned_changes(
         _pull_request(),
         "UAUTHOR",
         dry_run="",
-        github_team_to_slack_channels_path=channels,
+        github_team_to_slack_channels={"@Greenbax/p2p-po": "C123"},
         github_team_to_slack_channels_help_msg="",
         individual_reviewers=["reviewer"],
-        github_login_to_slack_ids_path=logins,
-        owned_changes_json_path=owned,
+        github_login_to_slack_ids={"reviewer": "UREV1"},
+        owned_changes={"@Greenbax/p2p-po": _owned_changes()},
     )
 
     assert ok
@@ -241,10 +234,7 @@ def test_process_review_request_posts_blocks_with_owned_changes(
 def test_process_review_request_without_flag_keeps_plain_text(
     mock_post_message: MagicMock,
     mock_get_user_info: MagicMock,
-    tmp_path: Path,
 ) -> None:
-    channels = _write(tmp_path / "channels.json", {"@Greenbax/p2p-po": "C123"})
-    logins = _write(tmp_path / "logins.json", {"reviewer": "UREV1"})
     mock_get_user_info.return_value = ("icon", "Author Name")
 
     process_review_request(
@@ -252,10 +242,10 @@ def test_process_review_request_without_flag_keeps_plain_text(
         _pull_request(),
         "UAUTHOR",
         dry_run="",
-        github_team_to_slack_channels_path=channels,
+        github_team_to_slack_channels={"@Greenbax/p2p-po": "C123"},
         github_team_to_slack_channels_help_msg="",
         individual_reviewers=["reviewer"],
-        github_login_to_slack_ids_path=logins,
+        github_login_to_slack_ids={"reviewer": "UREV1"},
     )
 
     kwargs = mock_post_message.call_args.kwargs
