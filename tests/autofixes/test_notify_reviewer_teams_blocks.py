@@ -9,6 +9,7 @@ from github.Team import Team as GithubTeam
 
 from bar_raiser.autofixes.notify_reviewer_teams import (
     OwnedChanges,
+    OwnedFile,
     ReviewRequest,
     _summary_elements,
     create_slack_blocks,
@@ -30,33 +31,61 @@ def _pull_request(title: str = "[CO MCP] Preview draft intake CO changes") -> Ma
     return pull_request
 
 
-def _owned_changes(**overrides: object) -> OwnedChanges:
-    owned: OwnedChanges = {
-        "summary": "Split the builders, with `include_draft` controlling drafts",
-        "files": [
-            {"name": "change_order_api_utils.py", "url": f"{PR_URL}/files#diff-a1"},
-            {"name": "headless_change_order.py", "url": f"{PR_URL}/files#diff-b5"},
-        ],
-        "more_files": 0,
-        "additions": 469,
-        "deletions": 25,
+def _owned_changes(
+    summary: str = "Split the builders, with `include_draft` controlling drafts",
+    files: list[OwnedFile] | None = None,
+    more_files: int = 0,
+    additions: int = 469,
+    deletions: int = 25,
+) -> OwnedChanges:
+    return {
+        "summary": summary,
+        "files": (
+            files
+            if files is not None
+            else [
+                {"name": "change_order_api_utils.py", "url": f"{PR_URL}/files#diff-a1"},
+                {"name": "headless_change_order.py", "url": f"{PR_URL}/files#diff-b5"},
+            ]
+        ),
+        "more_files": more_files,
+        "additions": additions,
+        "deletions": deletions,
     }
-    owned.update(overrides)  # pyright: ignore[reportCallIssue, reportArgumentType]
-    return owned
 
 
-def _request(**overrides: object) -> ReviewRequest:
-    fields: dict[str, object] = {
-        "team": "@Greenbax/p2p-po",
-        "channel": "C123",
-        "slack_id": "UAUTHOR",
-        "pull_request": _pull_request(),
-        "reviewers": ["UREV1", "UREV2"],
-        "is_blame_suggestion": True,
-        "owned_changes": _owned_changes(),
-    }
-    fields.update(overrides)
-    return ReviewRequest(**fields)  # pyright: ignore[reportArgumentType]
+class _Unset:
+    """Sentinel distinguishing "not passed" from an explicit `None`."""
+
+
+_UNSET = _Unset()
+
+
+def _request(
+    *,
+    team: str = "@Greenbax/p2p-po",
+    channel: str | None = "C123",
+    slack_id: str | None = "UAUTHOR",
+    pull_request: PullRequest | None = None,
+    reviewers: list[str] | None = None,
+    is_random_assignment: bool = False,
+    is_blame_suggestion: bool = True,
+    summary: str | None = None,
+    owned_changes: OwnedChanges | _Unset | None = _UNSET,
+) -> ReviewRequest:
+    return ReviewRequest(
+        team=team,
+        channel=channel,
+        slack_id=slack_id,
+        pull_request=pull_request if pull_request is not None else _pull_request(),
+        reviewers=reviewers if reviewers is not None else ["UREV1", "UREV2"],
+        is_random_assignment=is_random_assignment,
+        is_blame_suggestion=is_blame_suggestion,
+        summary=summary,
+        owned_changes=(
+            _owned_changes() if isinstance(owned_changes, _Unset) else owned_changes
+        ),
+    )
 
 
 def test_headline_fields_and_fallback() -> None:
