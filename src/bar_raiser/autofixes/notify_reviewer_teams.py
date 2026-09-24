@@ -189,8 +189,13 @@ def _fallback_text(review_request: ReviewRequest, team_slug: str, title: str) ->
     """Build the notification/sidebar/screen-reader fallback for `text`.
 
     Unlike the headline, this isn't rendered as blocks, so it carries the
-    reviewers, a plain PR URL, and the change summary too — the surfaces this
-    is shown on don't otherwise expose that content.
+    reviewers, the author, a plain PR URL, and the change summary too — the
+    surfaces this is shown on don't otherwise expose that content. This also
+    appears to be what actually drives Slack's @mention notifications when
+    `blocks` is set: a mention that only appears inside `blocks` (e.g. in a
+    section's `fields`) renders and highlights fine in-channel, but the
+    mentioned person gets no notification unless the same mention is also in
+    this fallback string.
     """
     pull_request = review_request.pull_request
     parts = [
@@ -200,6 +205,8 @@ def _fallback_text(review_request: ReviewRequest, team_slug: str, title: str) ->
     if review_request.reviewers:
         mentions = ", ".join(f"<@{reviewer}>" for reviewer in review_request.reviewers)
         parts.append(f"Reviewers: {mentions}")
+    if review_request.slack_id:
+        parts.append(f"Author: <@{review_request.slack_id}>")
     if review_request.owned_changes:
         parts.append(review_request.owned_changes["summary"])
     return " | ".join(parts)
