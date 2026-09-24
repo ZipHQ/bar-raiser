@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from json import dumps
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -179,20 +178,16 @@ def test_process_review_request_success(
     mock_get_user_info.return_value = ("icon_url", "username")
     mock_team.get_members = MagicMock(return_value=[])  # type: ignore[method-assign]
 
-    with patch(
-        "pathlib.Path.read_text",
-        return_value=dumps({"@Greenbax/test-team": "test-channel"}),
-    ):
-        comment, success = process_review_request(
-            mock_team,
-            mock_pull_request,
-            "U123",
-            dry_run="test-channel",
-            github_team_to_slack_channels_path=Path("test-path"),
-            github_team_to_slack_channels_help_msg="",
-            individual_reviewers=[],
-            github_login_to_slack_ids_path=Path("test-path-login"),
-        )
+    comment, success = process_review_request(
+        mock_team,
+        mock_pull_request,
+        "U123",
+        dry_run="test-channel",
+        github_team_to_slack_channels={"@Greenbax/test-team": "test-channel"},
+        github_team_to_slack_channels_help_msg="",
+        individual_reviewers=[],
+        github_login_to_slack_ids={},
+    )
     assert success
     assert "test-channel" in comment
     mock_post_message.assert_called_once()
@@ -211,55 +206,75 @@ def test_process_review_request_appends_summary(
     mock_get_user_info.return_value = ("icon_url", "username")
     mock_team.get_members = MagicMock(return_value=[])  # type: ignore[method-assign]
 
-    def read_text(self: Path) -> str:
-        if str(self) == "summaries-path":
-            return dumps({"@Greenbax/test-team": "Bumped the dependency lockfile."})
-        return dumps({"@Greenbax/test-team": "test-channel"})
-
-    with patch("pathlib.Path.read_text", read_text):
-        _comment, success = process_review_request(
-            mock_team,
-            mock_pull_request,
-            "U123",
-            dry_run="test-channel",
-            github_team_to_slack_channels_path=Path("test-path"),
-            github_team_to_slack_channels_help_msg="",
-            individual_reviewers=[],
-            github_login_to_slack_ids_path=Path("test-path-login"),
-            summary_json_path=Path("summaries-path"),
-        )
+    _comment, success = process_review_request(
+        mock_team,
+        mock_pull_request,
+        "U123",
+        dry_run="test-channel",
+        github_team_to_slack_channels={"@Greenbax/test-team": "test-channel"},
+        github_team_to_slack_channels_help_msg="",
+        individual_reviewers=[],
+        github_login_to_slack_ids={},
+        summaries={"@Greenbax/test-team": "Bumped the dependency lockfile."},
+    )
 
     assert success
     message_text = mock_post_message.call_args.kwargs["text"]
     assert message_text.endswith("\nBumped the dependency lockfile.")
 
 
+@patch(
+    "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
+)
+@patch("bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message")
+def test_process_review_request_ignores_summary_when_owned_changes_set(
+    mock_post_message: MagicMock,
+    mock_get_user_info: MagicMock,
+    mock_team: GithubTeam,
+    mock_pull_request: PullRequest,
+) -> None:
+    """--summary-json-path is ignored once owned-changes mode is active."""
+    mock_get_user_info.return_value = ("icon_url", "username")
+    mock_team.get_members = MagicMock(return_value=[])  # type: ignore[method-assign]
+
+    _comment, success = process_review_request(
+        mock_team,
+        mock_pull_request,
+        "U123",
+        dry_run="test-channel",
+        github_team_to_slack_channels={"@Greenbax/test-team": "test-channel"},
+        github_team_to_slack_channels_help_msg="",
+        individual_reviewers=[],
+        github_login_to_slack_ids={},
+        summaries={"@Greenbax/test-team": "Bumped the dependency lockfile."},
+        owned_changes={},
+    )
+
+    assert success
+    kwargs = mock_post_message.call_args.kwargs
+    assert kwargs["blocks"] is not None
+    assert "Bumped the dependency lockfile." not in kwargs["text"]
+
+
 def test_get_suggested_reviewers_for_team() -> None:
-    with patch(
-        "pathlib.Path.read_text",
-        return_value=dumps({"@Greenbax/test-team": ["alice", "bob"]}),
-    ):
-        assert get_suggested_reviewers_for_team(
-            "@Greenbax/test-team", Path("suggested.json")
-        ) == ["alice", "bob"]
-        assert (
-            get_suggested_reviewers_for_team("@Greenbax/other", Path("suggested.json"))
-            == []
-        )
+    mapping = {"@Greenbax/test-team": ["alice", "bob"]}
+    assert get_suggested_reviewers_for_team("@Greenbax/test-team", mapping) == [
+        "alice",
+        "bob",
+    ]
+    assert get_suggested_reviewers_for_team("@Greenbax/other", mapping) == []
     assert get_suggested_reviewers_for_team("@Greenbax/test-team", None) == []
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
 @patch(
     "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
 )
 @patch("bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message")
 @patch("bar_raiser.autofixes.notify_reviewer_teams.random.sample")
-def test_process_review_request_prefers_suggested_over_random(  # noqa: PLR0917
+def test_process_review_request_prefers_suggested_over_random(
     mock_random: MagicMock,
     mock_post_message: MagicMock,
     mock_get_user_info: MagicMock,
-    mock_get_slack_id: MagicMock,
     mock_team: GithubTeam,
     mock_pull_request: PullRequest,
 ) -> None:
@@ -272,15 +287,6 @@ def test_process_review_request_prefers_suggested_over_random(  # noqa: PLR0917
     member2.login = "bob"
     mock_team.get_members = MagicMock(return_value=[member1, member2])  # type: ignore[method-assign]
 
-    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
-        return {
-            "@Greenbax/test-team": "test-channel",
-            "alice": "U_ALICE",
-            "bob": "U_BOB",
-        }.get(github_login)
-
-    mock_get_slack_id.side_effect = slack_id_lookup
-
     with patch(
         "bar_raiser.autofixes.notify_reviewer_teams.get_suggested_reviewers_for_team",
         return_value=["alice"],
@@ -290,11 +296,11 @@ def test_process_review_request_prefers_suggested_over_random(  # noqa: PLR0917
             mock_pull_request,
             "U123",
             dry_run="test-channel",
-            github_team_to_slack_channels_path=Path("test-path"),
+            github_team_to_slack_channels={"@Greenbax/test-team": "test-channel"},
             github_team_to_slack_channels_help_msg="",
             individual_reviewers=[],
-            github_login_to_slack_ids_path=Path("test-path-login"),
-            suggested_reviewers_json_path=Path("suggested.json"),
+            github_login_to_slack_ids={"alice": "U_ALICE", "bob": "U_BOB"},
+            suggested_reviewers={"@Greenbax/test-team": ["alice"]},
         )
 
     assert success
@@ -303,7 +309,6 @@ def test_process_review_request_prefers_suggested_over_random(  # noqa: PLR0917
     assert "since they recently touched these lines" in message_text
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
 @patch(
     "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
 )
@@ -311,7 +316,6 @@ def test_process_review_request_prefers_suggested_over_random(  # noqa: PLR0917
 def test_process_review_request_blame_overrides_assigned(
     mock_post_message: MagicMock,
     mock_get_user_info: MagicMock,
-    mock_get_slack_id: MagicMock,
     mock_team: GithubTeam,
     mock_pull_request: PullRequest,
 ) -> None:
@@ -324,31 +328,18 @@ def test_process_review_request_blame_overrides_assigned(
     bob.login = "bob"
     mock_team.get_members = MagicMock(return_value=[alice, bob])  # type: ignore[method-assign]
 
-    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
-        return {
-            "@Greenbax/test-team": "test-channel",
-            "alice": "U_ALICE",
-            "bob": "U_BOB",
-        }.get(github_login)
-
-    mock_get_slack_id.side_effect = slack_id_lookup
-
     # alice is GitHub's assigned reviewer, but blame points at bob.
-    with patch(
-        "bar_raiser.autofixes.notify_reviewer_teams.get_suggested_reviewers_for_team",
-        return_value=["bob"],
-    ):
-        _comment, success = process_review_request(
-            mock_team,
-            mock_pull_request,
-            "U123",
-            dry_run="test-channel",
-            github_team_to_slack_channels_path=Path("test-path"),
-            github_team_to_slack_channels_help_msg="",
-            individual_reviewers=["alice"],
-            github_login_to_slack_ids_path=Path("test-path-login"),
-            suggested_reviewers_json_path=Path("suggested.json"),
-        )
+    _comment, success = process_review_request(
+        mock_team,
+        mock_pull_request,
+        "U123",
+        dry_run="test-channel",
+        github_team_to_slack_channels={"@Greenbax/test-team": "test-channel"},
+        github_team_to_slack_channels_help_msg="",
+        individual_reviewers=["alice"],
+        github_login_to_slack_ids={"alice": "U_ALICE", "bob": "U_BOB"},
+        suggested_reviewers={"@Greenbax/test-team": ["bob"]},
+    )
 
     assert success
     message_text = mock_post_message.call_args.kwargs["text"]
@@ -370,20 +361,16 @@ def test_process_review_request_none_channel(
     mock_get_user_info.return_value = ("icon_url", "username")
     mock_team.get_members = MagicMock(return_value=[])  # type: ignore[method-assign]
 
-    with patch(
-        "pathlib.Path.read_text",
-        return_value=dumps({}),
-    ):
-        comment, success = process_review_request(
-            mock_team,
-            mock_pull_request,
-            "U123",
-            dry_run="test-channel",
-            github_team_to_slack_channels_path=Path("test-path"),
-            github_team_to_slack_channels_help_msg="",
-            individual_reviewers=[],
-            github_login_to_slack_ids_path=Path("test-path-login"),
-        )
+    comment, success = process_review_request(
+        mock_team,
+        mock_pull_request,
+        "U123",
+        dry_run="test-channel",
+        github_team_to_slack_channels={},
+        github_team_to_slack_channels_help_msg="",
+        individual_reviewers=[],
+        github_login_to_slack_ids={},
+    )
     assert not success
     assert "Slack channel not found" in comment
     mock_post_message.assert_not_called()
@@ -402,26 +389,21 @@ def test_process_review_request_dry_run(
     mock_get_user_info.return_value = ("icon_url", "username")
     mock_team.get_members = MagicMock(return_value=[])  # type: ignore[method-assign]
 
-    with patch(
-        "pathlib.Path.read_text",
-        return_value=dumps({"@Greenbax/test-team": "test-channel"}),
-    ):
-        comment, success = process_review_request(
-            mock_team,
-            mock_pull_request,
-            "U123",
-            dry_run="test-channel",
-            github_team_to_slack_channels_path=Path("test-path"),
-            github_team_to_slack_channels_help_msg="",
-            individual_reviewers=[],
-            github_login_to_slack_ids_path=Path("test-path-login"),
-        )
+    comment, success = process_review_request(
+        mock_team,
+        mock_pull_request,
+        "U123",
+        dry_run="test-channel",
+        github_team_to_slack_channels={"@Greenbax/test-team": "test-channel"},
+        github_team_to_slack_channels_help_msg="",
+        individual_reviewers=[],
+        github_login_to_slack_ids={},
+    )
     assert success
     assert "test-team" in comment
     mock_post_message.assert_called_once()
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
 @patch(
     "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
 )
@@ -429,7 +411,6 @@ def test_process_review_request_dry_run(
 def test_process_review_request_filters_reviewers_by_team(
     mock_post_message: MagicMock,
     mock_get_user_info: MagicMock,
-    mock_get_slack_id: MagicMock,
     mock_team: GithubTeam,
     mock_pull_request: PullRequest,
 ) -> None:
@@ -447,27 +428,19 @@ def test_process_review_request_filters_reviewers_by_team(
     # alice and bob are team members, charlie is not
     individual_reviewers = ["alice", "bob", "charlie"]
 
-    # Mock Slack ID lookups - return Slack IDs for team members
-    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
-        mapping = {
-            "@Greenbax/test-team": "test-channel",
-            "alice": "U_ALICE",
-            "bob": "U_BOB",
-            "charlie": "U_CHARLIE",
-        }
-        return mapping.get(github_login)
-
-    mock_get_slack_id.side_effect = slack_id_lookup
-
     comment, success = process_review_request(
         mock_team,
         mock_pull_request,
         "U123",
         dry_run="test-channel",
-        github_team_to_slack_channels_path=Path("test-path"),
+        github_team_to_slack_channels={"@Greenbax/test-team": "test-channel"},
         github_team_to_slack_channels_help_msg="",
         individual_reviewers=individual_reviewers,
-        github_login_to_slack_ids_path=Path("test-path-login"),
+        github_login_to_slack_ids={
+            "alice": "U_ALICE",
+            "bob": "U_BOB",
+            "charlie": "U_CHARLIE",
+        },
     )
 
     assert success
@@ -484,7 +457,6 @@ def test_process_review_request_filters_reviewers_by_team(
     assert "assigned to" in message_text
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
 @patch(
     "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
 )
@@ -492,7 +464,6 @@ def test_process_review_request_filters_reviewers_by_team(
 def test_process_review_request_no_matching_team_members(
     mock_post_message: MagicMock,
     mock_get_user_info: MagicMock,
-    mock_get_slack_id: MagicMock,
     mock_team: GithubTeam,
     mock_pull_request: PullRequest,
 ) -> None:
@@ -510,28 +481,20 @@ def test_process_review_request_no_matching_team_members(
     # charlie and david are NOT team members
     individual_reviewers = ["charlie", "david"]
 
-    # Mock Slack ID lookups - now include alice and bob who will be randomly assigned
-    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
-        mapping = {
-            "@Greenbax/test-team": "test-channel",
-            "alice": "U_ALICE",
-            "bob": "U_BOB",
-            "charlie": "U_CHARLIE",
-            "david": "U_DAVID",
-        }
-        return mapping.get(github_login)
-
-    mock_get_slack_id.side_effect = slack_id_lookup
-
     _comment, success = process_review_request(
         mock_team,
         mock_pull_request,
         "U123",
         dry_run="test-channel",
-        github_team_to_slack_channels_path=Path("test-path"),
+        github_team_to_slack_channels={"@Greenbax/test-team": "test-channel"},
         github_team_to_slack_channels_help_msg="",
         individual_reviewers=individual_reviewers,
-        github_login_to_slack_ids_path=Path("test-path-login"),
+        github_login_to_slack_ids={
+            "alice": "U_ALICE",
+            "bob": "U_BOB",
+            "charlie": "U_CHARLIE",
+            "david": "U_DAVID",
+        },
     )
 
     assert success
@@ -549,7 +512,6 @@ def test_process_review_request_no_matching_team_members(
     assert "U_DAVID" not in message_text
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
 @patch(
     "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
 )
@@ -557,7 +519,6 @@ def test_process_review_request_no_matching_team_members(
 def test_process_review_request_excludes_author_from_random_suggestions(
     mock_post_message: MagicMock,
     mock_get_user_info: MagicMock,
-    mock_get_slack_id: MagicMock,
     mock_team: GithubTeam,
     mock_pull_request: PullRequest,
 ) -> None:
@@ -577,26 +538,19 @@ def test_process_review_request_excludes_author_from_random_suggestions(
     # No individual reviewers assigned — triggers random assignment
     individual_reviewers: list[str] = []
 
-    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
-        mapping = {
-            "@Greenbax/test-team": "test-channel",
-            "testuser": "U_AUTHOR",
-            "alice": "U_ALICE",
-            "bob": "U_BOB",
-        }
-        return mapping.get(github_login)
-
-    mock_get_slack_id.side_effect = slack_id_lookup
-
     _comment, success = process_review_request(
         mock_team,
         mock_pull_request,
         "U_AUTHOR",
         dry_run="test-channel",
-        github_team_to_slack_channels_path=Path("test-path"),
+        github_team_to_slack_channels={"@Greenbax/test-team": "test-channel"},
         github_team_to_slack_channels_help_msg="",
         individual_reviewers=individual_reviewers,
-        github_login_to_slack_ids_path=Path("test-path-login"),
+        github_login_to_slack_ids={
+            "testuser": "U_AUTHOR",
+            "alice": "U_ALICE",
+            "bob": "U_BOB",
+        },
     )
 
     assert success
@@ -612,7 +566,6 @@ def test_process_review_request_excludes_author_from_random_suggestions(
     assert "maybe <@U_AUTHOR>" not in message_text
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
 @patch(
     "bar_raiser.autofixes.notify_reviewer_teams.get_slack_user_icon_url_and_username"
 )
@@ -620,7 +573,6 @@ def test_process_review_request_excludes_author_from_random_suggestions(
 def test_process_review_request_with_team_member_reviewers(
     mock_post_message: MagicMock,
     mock_get_user_info: MagicMock,
-    mock_get_slack_id: MagicMock,
     mock_team: GithubTeam,
     mock_pull_request: PullRequest,
 ) -> None:
@@ -640,27 +592,19 @@ def test_process_review_request_with_team_member_reviewers(
     # All three are team members
     individual_reviewers = ["alice", "bob", "charlie"]
 
-    # Mock Slack ID lookups
-    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
-        mapping = {
-            "@Greenbax/test-team": "test-channel",
-            "alice": "U_ALICE",
-            "bob": "U_BOB",
-            "charlie": "U_CHARLIE",
-        }
-        return mapping.get(github_login)
-
-    mock_get_slack_id.side_effect = slack_id_lookup
-
     _comment, success = process_review_request(
         mock_team,
         mock_pull_request,
         "U123",
         dry_run="test-channel",
-        github_team_to_slack_channels_path=Path("test-path"),
+        github_team_to_slack_channels={"@Greenbax/test-team": "test-channel"},
         github_team_to_slack_channels_help_msg="",
         individual_reviewers=individual_reviewers,
-        github_login_to_slack_ids_path=Path("test-path-login"),
+        github_login_to_slack_ids={
+            "alice": "U_ALICE",
+            "bob": "U_BOB",
+            "charlie": "U_CHARLIE",
+        },
     )
 
     assert success
@@ -672,21 +616,17 @@ def test_process_review_request_with_team_member_reviewers(
     assert "(assigned to <@U_ALICE>, <@U_BOB>, <@U_CHARLIE>)" in message_text
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams._load_json_mapping")
 @patch("bar_raiser.autofixes.notify_reviewer_teams.process_review_request")
 def test_process_pull_request_bot_author_uses_label_sender(
     mock_process_request: MagicMock,
-    mock_get_slack_id: MagicMock,
+    mock_load_json_mapping: MagicMock,
     mock_pull_request: PullRequest,
     mock_team: GithubTeam,
 ) -> None:
     """When PR author is a bot, use GITHUB_ACTOR (label sender) for Slack mention."""
     mock_pull_request.user.login = "my-app[bot]"
-
-    def slack_id_lookup(github_login: str, _path: Path) -> str | None:
-        return {"victor": "U_VICTOR"}.get(github_login)
-
-    mock_get_slack_id.side_effect = slack_id_lookup
+    mock_load_json_mapping.return_value = {"victor": "U_VICTOR"}
     mock_process_request.return_value = ("Test comment", True)
     mock_pull_request.get_review_requests = MagicMock(return_value=[[mock_team]])
 
@@ -707,17 +647,17 @@ def test_process_pull_request_bot_author_uses_label_sender(
     assert call_args[0][2] == "U_VICTOR"  # slack_id positional arg
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams._load_json_mapping")
 @patch("bar_raiser.autofixes.notify_reviewer_teams.process_review_request")
 def test_process_pull_request_bot_author_no_sender_mapping(
     mock_process_request: MagicMock,
-    mock_get_slack_id: MagicMock,
+    mock_load_json_mapping: MagicMock,
     mock_pull_request: PullRequest,
     mock_team: GithubTeam,
 ) -> None:
     """When PR author is a bot and label sender has no Slack mapping, slack_id is None."""
     mock_pull_request.user.login = "my-app[bot]"
-    mock_get_slack_id.return_value = None
+    mock_load_json_mapping.return_value = {}
     mock_process_request.return_value = ("Test comment", True)
     mock_pull_request.get_review_requests = MagicMock(return_value=[[mock_team]])
 
@@ -738,17 +678,17 @@ def test_process_pull_request_bot_author_no_sender_mapping(
     assert call_args[0][2] is None  # slack_id positional arg
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams._load_json_mapping")
 @patch("bar_raiser.autofixes.notify_reviewer_teams.process_review_request")
 def test_process_pull_request_bot_author_no_github_actor(
     mock_process_request: MagicMock,
-    mock_get_slack_id: MagicMock,
+    mock_load_json_mapping: MagicMock,
     mock_pull_request: PullRequest,
     mock_team: GithubTeam,
 ) -> None:
     """When PR author is a bot and GITHUB_ACTOR is not set, slack_id is None."""
     mock_pull_request.user.login = "my-app[bot]"
-    mock_get_slack_id.return_value = None
+    mock_load_json_mapping.return_value = {}
     mock_process_request.return_value = ("Test comment", True)
     mock_pull_request.get_review_requests = MagicMock(return_value=[[mock_team]])
 
@@ -771,12 +711,12 @@ def test_process_pull_request_bot_author_no_github_actor(
     assert call_args[0][2] is None  # slack_id positional arg
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams._load_json_mapping")
 def test_process_pull_request_no_slack_id(
-    mock_get_slack_id: MagicMock,
+    mock_load_json_mapping: MagicMock,
     mock_pull_request: PullRequest,
 ) -> None:
-    mock_get_slack_id.return_value = None
+    mock_load_json_mapping.return_value = {}
 
     comment = process_pull_request(
         mock_pull_request,
@@ -793,15 +733,15 @@ def test_process_pull_request_no_slack_id(
     )
 
 
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams._load_json_mapping")
 @patch("bar_raiser.autofixes.notify_reviewer_teams.process_review_request")
 def test_process_pull_request_success(
     mock_process_request: MagicMock,
-    mock_get_slack_id: MagicMock,
+    mock_load_json_mapping: MagicMock,
     mock_pull_request: PullRequest,
     mock_team: GithubTeam,
 ) -> None:
-    mock_get_slack_id.return_value = "U123"
+    mock_load_json_mapping.return_value = {"testuser": "U123"}
     mock_process_request.return_value = ("Test comment", True)
 
     mock_pull_request.get_review_requests = MagicMock(return_value=[[mock_team]])
@@ -817,6 +757,41 @@ def test_process_pull_request_success(
     )
     assert comment == "Test comment"
     mock_process_request.assert_called_once()
+
+
+@patch("bar_raiser.autofixes.notify_reviewer_teams._load_json_mapping")
+def test_process_pull_request_loads_mappings_once_per_pr(
+    mock_load_json_mapping: MagicMock,
+    mock_pull_request: PullRequest,
+) -> None:
+    """The mapping files are read once per PR, not once per requested team."""
+    mock_load_json_mapping.return_value = {"testuser": "U123"}
+
+    team_a = MagicMock(spec=GithubTeam)
+    team_a.organization.login = "Greenbax"
+    team_a.slug = "team-a"
+    team_a.get_members = MagicMock(return_value=[])
+    team_b = MagicMock(spec=GithubTeam)
+    team_b.organization.login = "Greenbax"
+    team_b.slug = "team-b"
+    team_b.get_members = MagicMock(return_value=[])
+
+    mock_pull_request.get_review_requests = MagicMock(return_value=[[team_a, team_b]])
+
+    with patch("bar_raiser.autofixes.notify_reviewer_teams.post_a_slack_message"):
+        process_pull_request(
+            mock_pull_request,
+            dry_run="test-channel",
+            github_login_to_slack_ids_path=Path("test-path-1"),
+            github_login_to_slack_ids_help_msg="",
+            github_team_to_slack_channels_path=Path("test-path-2"),
+            github_team_to_slack_channels_help_msg="",
+            only_notify_team_slug=None,
+        )
+
+    # Two mapping files (login-to-slack-ids, team-to-channels), read once
+    # each regardless of how many teams were requested.
+    assert mock_load_json_mapping.call_count == 2
 
 
 @pytest.mark.parametrize(
@@ -882,11 +857,11 @@ def test_process_pull_request_success(
         ),
     ],
 )
-@patch("bar_raiser.autofixes.notify_reviewer_teams.get_id_from_mapping_path")
+@patch("bar_raiser.autofixes.notify_reviewer_teams._load_json_mapping")
 @patch("bar_raiser.autofixes.notify_reviewer_teams.process_review_request")
 def test_process_pull_request_only_notify_team(  # noqa: PLR0917
     mock_process_review_request: MagicMock,
-    mock_get_author_slack_id: MagicMock,
+    mock_load_json_mapping: MagicMock,
     mock_pull_request: PullRequest,
     only_notify_team_slug_arg: str | None,
     requested_teams_slugs: list[str],
@@ -894,7 +869,7 @@ def test_process_pull_request_only_notify_team(  # noqa: PLR0917
     expected_comment: str,
     expected_calls_to_process_review_request: int,
 ) -> None:
-    mock_get_author_slack_id.return_value = "U_AUTHOR123"  # For author lookup
+    mock_load_json_mapping.return_value = {"testuser": "U_AUTHOR123"}
     mock_process_review_request.return_value = process_review_request_return_value
 
     # Setup mock teams based on requested_teams_slugs
