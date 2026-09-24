@@ -89,6 +89,7 @@ def test_headline_fields_and_fallback() -> None:
     assert fallback == (
         f"Review needed from p2p-po: [CO MCP] Preview draft intake CO changes "
         f"(PR-133091) {PR_URL} | Reviewers: <@UREV1>, <@UREV2> | "
+        "Author: <@UAUTHOR> | "
         "Split the builders, with `include_draft` controlling drafts"
     )
     assert blocks[0]["text"]["text"] == (
@@ -101,8 +102,23 @@ def test_headline_fields_and_fallback() -> None:
     ]
 
 
-def test_fallback_omits_reviewers_and_summary_when_absent() -> None:
+def test_fallback_includes_author_mention() -> None:
+    """The author mention must be in the fallback `text`, not only in blocks.
+
+    Slack's notification pipeline appears to key off the plain `text` field
+    when `blocks` is set: a mention that only appears inside blocks (e.g. the
+    Author section field) highlights fine in-channel but doesn't notify the
+    mentioned person. Confirmed by an actual missed notification in
+    production (evergreen PR #134947) before this fallback carried it.
+    """
     fallback, _ = create_slack_blocks(_request(reviewers=[], owned_changes=None))
+    assert "Author: <@UAUTHOR>" in fallback
+
+
+def test_fallback_omits_reviewers_author_and_summary_when_absent() -> None:
+    fallback, _ = create_slack_blocks(
+        _request(reviewers=[], owned_changes=None, slack_id=None)
+    )
     assert (
         fallback
         == f"Review needed from p2p-po: [CO MCP] Preview draft intake CO changes (PR-133091) {PR_URL}"
