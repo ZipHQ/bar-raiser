@@ -190,7 +190,8 @@ def test_owned_change_block_links_each_file() -> None:
         ("change_order_api_utils.py", f"{PR_URL}/files#diff-a1"),
         ("headless_change_order.py", f"{PR_URL}/files#diff-b5"),
     ]
-    assert all(link["style"] == {"code": True} for link in links)
+    assert all("style" not in link for link in links)  # plain links look clickable
+    assert {"type": "text", "text": ", "} in elements
     assert elements[-1] == {"type": "text", "text": "+469/-25", "style": {"code": True}}
 
 

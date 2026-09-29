@@ -171,12 +171,13 @@ def _owned_changes_elements(
     ]
     for index, owned_file in enumerate(owned_changes["files"]):
         if index:
-            elements.append({"type": "text", "text": " "})
+            elements.append({"type": "text", "text": ", "})
+        # Plain (unstyled) links so they render blue and read as clickable;
+        # code-styled links look like inert monospace text.
         elements.append({
             "type": "link",
             "url": owned_file["url"],
             "text": owned_file["name"],
-            "style": {"code": True},
         })
     if owned_changes["more_files"]:
         elements.append({
