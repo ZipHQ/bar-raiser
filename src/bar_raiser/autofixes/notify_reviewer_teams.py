@@ -111,11 +111,16 @@ def _escape_mrkdwn(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _reviewer_field(review_request: ReviewRequest, team_slug: str) -> str:
-    """Render the reviewer column, labeled by how the reviewers were chosen."""
+def _reviewer_elements(
+    review_request: ReviewRequest, team_slug: str
+) -> list[dict[str, Any]]:
+    """Render the reviewer label and mentions, labeled by how they were chosen."""
+    bold = {"bold": True}
     if not review_request.reviewers:
-        return f"*Reviewer*\nAnyone on {team_slug}"
-    mentions = ", ".join(f"<@{reviewer}>" for reviewer in review_request.reviewers)
+        return [
+            {"type": "text", "text": "Reviewer: ", "style": bold},
+            {"type": "text", "text": f"Anyone on {team_slug}"},
+        ]
     if review_request.is_blame_suggestion or review_request.is_random_assignment:
         label = (
             "Suggested reviewer"
@@ -124,7 +129,14 @@ def _reviewer_field(review_request: ReviewRequest, team_slug: str) -> str:
         )
     else:
         label = "Assigned"
-    return f"*{label}*\n{mentions}"
+    elements: list[dict[str, Any]] = [
+        {"type": "text", "text": f"{label}: ", "style": bold}
+    ]
+    for index, reviewer in enumerate(review_request.reviewers):
+        if index:
+            elements.append({"type": "text", "text": ", "})
+        elements.append({"type": "user", "user_id": reviewer})
+    return elements
 
 
 def _summary_elements(summary: str) -> list[dict[str, Any]]:
@@ -148,9 +160,9 @@ def _summary_elements(summary: str) -> list[dict[str, Any]]:
     return elements
 
 
-def _owned_changes_block(
+def _owned_changes_elements(
     owned_changes: OwnedChanges, pull_request_url: str
-) -> dict[str, Any]:
+) -> list[dict[str, Any]]:
     """Render the "Owned-file change" section: summary, linked files, diffstat."""
     elements: list[dict[str, Any]] = [
         {"type": "text", "text": "Owned-file change\n", "style": {"bold": True}},
@@ -179,10 +191,7 @@ def _owned_changes_block(
         "text": f"+{owned_changes['additions']}/-{owned_changes['deletions']}",
         "style": {"code": True},
     })
-    return {
-        "type": "rich_text",
-        "elements": [{"type": "rich_text_section", "elements": elements}],
-    }
+    return elements
 
 
 def _fallback_text(review_request: ReviewRequest, team_slug: str, title: str) -> str:
@@ -221,32 +230,42 @@ def create_slack_blocks(
     notifications, the sidebar, and to screen readers, so it repeats the key
     content (reviewers, PR link, summary) outside of the blocks.
 
+    Everything lives in a single `rich_text` block: Slack pads separate blocks
+    with a large vertical margin, while newlines inside one block stay tight.
+
     Layout:
-    - headline: "Review needed from <team>:" + linked PR title
-    - two columns: reviewer(s) and author (author omitted without a Slack ID)
+    - "Review needed:" + linked PR title + PR number
+    - "from <team>" subtitle
+    - reviewer(s) and author on one line (author omitted without a Slack ID)
     - "Owned-file change", only when the team has an owned-changes entry
     """
     pull_request = review_request.pull_request
     team_slug = review_request.team.split("/")[-1]
     title = pull_request.title
-    headline = (
-        f"*Review needed from {team_slug}:* "
-        f"<{pull_request.html_url}|{_escape_mrkdwn(title)}> (PR-{pull_request.number})"
-    )
-    fields = [{"type": "mrkdwn", "text": _reviewer_field(review_request, team_slug)}]
-    if review_request.slack_id:
-        fields.append({
-            "type": "mrkdwn",
-            "text": f"*Author*\n<@{review_request.slack_id}>",
-        })
-    blocks: list[dict[str, Any]] = [
-        {"type": "section", "text": {"type": "mrkdwn", "text": headline}},
-        {"type": "section", "fields": fields},
+    bold = {"bold": True}
+    elements: list[dict[str, Any]] = [
+        {"type": "text", "text": "Review needed: ", "style": bold},
+        {"type": "link", "url": pull_request.html_url, "text": title},
+        {"type": "text", "text": f" (PR-{pull_request.number})\nfrom {team_slug}\n"},
+        *_reviewer_elements(review_request, team_slug),
     ]
+    if review_request.slack_id:
+        elements.extend([
+            {"type": "text", "text": "  ·  "},
+            {"type": "text", "text": "Author: ", "style": bold},
+            {"type": "user", "user_id": review_request.slack_id},
+        ])
     if review_request.owned_changes:
-        blocks.append(
-            _owned_changes_block(review_request.owned_changes, pull_request.html_url)
+        elements.append({"type": "text", "text": "\n"})
+        elements.extend(
+            _owned_changes_elements(review_request.owned_changes, pull_request.html_url)
         )
+    blocks: list[dict[str, Any]] = [
+        {
+            "type": "rich_text",
+            "elements": [{"type": "rich_text_section", "elements": elements}],
+        }
+    ]
     return _fallback_text(review_request, team_slug, title), blocks
 
 
