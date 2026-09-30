@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from github.PullRequest import PullRequest
@@ -83,8 +84,17 @@ def _request(
     )
 
 
-def test_headline_fields_and_fallback() -> None:
+def _elements(request: ReviewRequest) -> list[dict[str, Any]]:
+    """The elements of the single rich_text section the layout is built from."""
+    _, blocks = create_slack_blocks(request)
+    assert len(blocks) == 1
+    assert blocks[0]["type"] == "rich_text"
+    return blocks[0]["elements"][0]["elements"]
+
+
+def test_headline_reviewers_author_and_fallback() -> None:
     fallback, blocks = create_slack_blocks(_request())
+    elements = blocks[0]["elements"][0]["elements"]
 
     assert fallback == (
         f"Review needed from p2p-po: [CO MCP] Preview draft intake CO changes "
@@ -92,13 +102,23 @@ def test_headline_fields_and_fallback() -> None:
         "Author: <@UAUTHOR> | "
         "Split the builders, with `include_draft` controlling drafts"
     )
-    assert blocks[0]["text"]["text"] == (
-        f"*Review needed from p2p-po:* <{PR_URL}|[CO MCP] Preview draft intake CO "
-        "changes> (PR-133091)"
-    )
-    assert [field["text"] for field in blocks[1]["fields"]] == [
-        "*Suggested reviewers*\n<@UREV1>, <@UREV2>",
-        "*Author*\n<@UAUTHOR>",
+    assert elements[:6] == [
+        {"type": "text", "text": "Review needed: ", "style": {"bold": True}},
+        {
+            "type": "link",
+            "url": PR_URL,
+            "text": "[CO MCP] Preview draft intake CO changes",
+        },
+        {"type": "text", "text": " (PR-133091)\nfrom p2p-po\n"},
+        {"type": "text", "text": "Suggested reviewers: ", "style": {"bold": True}},
+        {"type": "user", "user_id": "UREV1"},
+        {"type": "text", "text": ", "},
+    ]
+    assert elements[6:10] == [
+        {"type": "user", "user_id": "UREV2"},
+        {"type": "text", "text": "  ·  "},
+        {"type": "text", "text": "Author: ", "style": {"bold": True}},
+        {"type": "user", "user_id": "UAUTHOR"},
     ]
 
 
@@ -127,61 +147,63 @@ def test_fallback_omits_reviewers_author_and_summary_when_absent() -> None:
 
 def test_reviewer_label_follows_how_reviewers_were_chosen() -> None:
     def label(request: ReviewRequest) -> str:
-        return create_slack_blocks(request)[1][1]["fields"][0]["text"]
+        return _elements(request)[3]["text"]
 
-    assert label(_request(reviewers=["UREV1"])) == "*Suggested reviewer*\n<@UREV1>"
-    assert label(
-        _request(is_blame_suggestion=False, is_random_assignment=True)
-    ).startswith("*Suggested reviewers*")
-    assert label(_request(is_blame_suggestion=False)) == (
-        "*Assigned*\n<@UREV1>, <@UREV2>"
+    assert label(_request(reviewers=["UREV1"])) == "Suggested reviewer: "
+    assert (
+        label(_request(is_blame_suggestion=False, is_random_assignment=True))
+        == "Suggested reviewers: "
     )
-    assert label(_request(reviewers=[])) == "*Reviewer*\nAnyone on p2p-po"
+    assert label(_request(is_blame_suggestion=False)) == "Assigned: "
+    no_reviewers = _elements(_request(reviewers=[]))
+    assert no_reviewers[3:5] == [
+        {"type": "text", "text": "Reviewer: ", "style": {"bold": True}},
+        {"type": "text", "text": "Anyone on p2p-po"},
+    ]
 
 
-def test_author_column_omitted_without_slack_id() -> None:
-    _, blocks = create_slack_blocks(_request(slack_id=None))
-    assert len(blocks[1]["fields"]) == 1
+def test_author_omitted_without_slack_id() -> None:
+    elements = _elements(_request(slack_id=None, owned_changes=None))
+    assert not [e for e in elements if e.get("text") == "Author: "]
+    assert elements[-1] == {"type": "user", "user_id": "UREV2"}
 
 
-def test_title_is_escaped() -> None:
+def test_title_is_escaped_only_in_fallback() -> None:
+    """rich_text doesn't parse mrkdwn, so the link text stays raw; the plain-text
+    fallback does, so it must be escaped."""
     request = _request(pull_request=_pull_request(title="Fix <Foo> & bar"))
     fallback, blocks = create_slack_blocks(request)
-    assert "Fix &lt;Foo&gt; &amp; bar" in blocks[0]["text"]["text"]
+    assert blocks[0]["elements"][0]["elements"][1]["text"] == "Fix <Foo> & bar"
     assert "Fix &lt;Foo&gt; &amp; bar" in fallback
 
 
 def test_owned_change_block_links_each_file() -> None:
-    _, blocks = create_slack_blocks(_request())
-    elements = blocks[2]["elements"][0]["elements"]
+    elements = _elements(_request())
 
-    assert elements[0] == {
+    assert {
         "type": "text",
         "text": "Owned-file change\n",
         "style": {"bold": True},
-    }
-    links = [e for e in elements if e["type"] == "link"]
+    } in elements
+    links = [e for e in elements if e["type"] == "link"][1:]  # skip the PR title
     assert [(link["text"], link["url"]) for link in links] == [
         ("change_order_api_utils.py", f"{PR_URL}/files#diff-a1"),
         ("headless_change_order.py", f"{PR_URL}/files#diff-b5"),
     ]
-    assert all(link["style"] == {"code": True} for link in links)
+    assert all("style" not in link for link in links)  # plain links look clickable
+    assert {"type": "text", "text": ", "} in elements
     assert elements[-1] == {"type": "text", "text": "+469/-25", "style": {"code": True}}
 
 
 def test_more_files_links_to_files_tab() -> None:
-    _, blocks = create_slack_blocks(
-        _request(owned_changes=_owned_changes(more_files=2))
-    )
-    elements = blocks[2]["elements"][0]["elements"]
+    elements = _elements(_request(owned_changes=_owned_changes(more_files=2)))
     assert {"type": "link", "url": f"{PR_URL}/files", "text": " +2 more"} in elements
 
 
 def test_only_test_files_owned_shows_just_the_diffstat() -> None:
     owned = _owned_changes(files=[], additions=0, deletions=0)
-    _, blocks = create_slack_blocks(_request(owned_changes=owned))
-    elements = blocks[2]["elements"][0]["elements"]
-    assert not [e for e in elements if e["type"] == "link"]
+    elements = _elements(_request(owned_changes=owned))
+    assert [e for e in elements if e["type"] == "link"] == elements[1:2]  # title only
     assert elements[-2:] == [
         {"type": "text", "text": " · "},
         {"type": "text", "text": "+0/-0", "style": {"code": True}},
@@ -189,8 +211,8 @@ def test_only_test_files_owned_shows_just_the_diffstat() -> None:
 
 
 def test_no_owned_changes_leaves_out_the_block() -> None:
-    _, blocks = create_slack_blocks(_request(owned_changes=None))
-    assert len(blocks) == 2
+    elements = _elements(_request(owned_changes=None))
+    assert not [e for e in elements if e.get("text") == "Owned-file change\n"]
 
 
 def test_summary_backticks_become_code_elements() -> None:
@@ -239,8 +261,14 @@ def test_process_review_request_posts_blocks_with_owned_changes(
     assert ok
     kwargs = mock_post_message.call_args.kwargs
     assert kwargs["text"].startswith("Review needed from p2p-po:")
-    assert kwargs["blocks"][1]["fields"][0]["text"] == "*Assigned*\n<@UREV1>"
-    assert kwargs["blocks"][2]["type"] == "rich_text"
+    elements = kwargs["blocks"][0]["elements"][0]["elements"]
+    assert {"type": "text", "text": "Assigned: ", "style": {"bold": True}} in elements
+    assert {"type": "user", "user_id": "UREV1"} in elements
+    assert {
+        "type": "text",
+        "text": "Owned-file change\n",
+        "style": {"bold": True},
+    } in elements
 
 
 @patch(
