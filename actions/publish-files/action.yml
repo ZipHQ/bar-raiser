@@ -77,23 +77,16 @@ runs:
       if: steps.check-run-date.outputs.run-today == 'false'
       shell: bash
       run: |
-        set -x
-        rm -rf upload-target-repo/${{ inputs.target-repo-path }}
-        cp -r ${{ inputs.local-repo-path }} upload-target-repo/${{ inputs.target-repo-path }}
-        cd upload-target-repo/
-        git config --global user.email "${{ inputs.git-user-email }}"
-        git config --global user.name "${{ inputs.git-user-name }}"
-        git config --unset http.https://github.com/.extraheader
-        git remote set-url origin https://$CUSTOM_GH_TOKEN@github.com/${{ inputs.github-repo }}.git
-        git status
-        git add -u
-        git add ${{ inputs.target-repo-path }}
-        git commit -m "Update ${{ inputs.target-repo-path }} reports from $GITHUB_REPOSITORY $GITHUB_SHA"
-        git push origin master
-        rm -rf ../last-run-date.txt
-        date +%Y-%m-%dT%H:%M:%S > ../last-run-date.txt
+        bash "$GITHUB_ACTION_PATH/publish.sh"
+        rm -rf last-run-date.txt
+        date +%Y-%m-%dT%H:%M:%S > last-run-date.txt
       env:
         CUSTOM_GH_TOKEN: ${{ inputs.github-token }}
+        TARGET_REPO: ${{ inputs.github-repo }}
+        TARGET_REPO_PATH: ${{ inputs.target-repo-path }}
+        LOCAL_REPO_PATH: ${{ inputs.local-repo-path }}
+        GIT_USER_NAME: ${{ inputs.git-user-name }}
+        GIT_USER_EMAIL: ${{ inputs.git-user-email }}
     - name: Upload last run date
       uses: actions/upload-artifact@v4
       with:
