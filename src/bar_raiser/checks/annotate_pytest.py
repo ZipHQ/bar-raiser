@@ -25,12 +25,15 @@ class Test(TypedDict):
     nodeid: str
     outcome: str
     lineno: int
-    call: Call
+    setup: NotRequired[Call]
+    call: NotRequired[Call]
+    teardown: NotRequired[Call]
 
 
 class TestSummary(TypedDict):
     passed: NotRequired[int]
     failed: int
+    error: NotRequired[int]
     total: int
 
 
@@ -40,24 +43,33 @@ class PytestReportJson(TypedDict):
     tests: list[Test]
 
 
+def get_longrepr(test: Test) -> str:
+    # A test that errors in a fixture has no "call" stage, so check every stage.
+    for stage in ("setup", "call", "teardown"):
+        longrepr = test.get(stage, {}).get("longrepr")
+        if longrepr:
+            return longrepr
+    return "Missing longrepr from pytest report."
+
+
 def get_annotations(
     pytest_report_json: PytestReportJson, git_root: Path
 ) -> list[Annotation]:
     annotations: list[Annotation] = []
     for test in pytest_report_json["tests"]:
-        if test["outcome"] == "failed":
+        if test["outcome"] in {"failed", "error"}:
             full_path = Path(pytest_report_json["root"]).joinpath(
                 test["nodeid"].split("::")[0]
             )
+            # pytest-json-report line numbers are 0-based, GitHub's are 1-based.
+            line = test["lineno"] + 1
             annotations.append(
                 Annotation(
                     path=str(full_path.relative_to(git_root)),
-                    start_line=test["lineno"],
-                    end_line=test["lineno"],
+                    start_line=line,
+                    end_line=line,
                     annotation_level="failure",
-                    message=test["call"].get(
-                        "longrepr", "Missing longrepr from pytest report."
-                    ),
+                    message=get_longrepr(test),
                 )
             )
     return annotations
@@ -65,7 +77,9 @@ def get_annotations(
 
 def get_summary(pytest_report_json: PytestReportJson) -> str:
     summary = pytest_report_json["summary"]
-    return f"Passed: {summary.get('passed', 0)}, Failed: {summary.get('failed', 0)}, Total: {summary['total']}"
+    errors = summary.get("error", 0)
+    errors_text = f", Errors: {errors}" if errors else ""
+    return f"Passed: {summary.get('passed', 0)}, Failed: {summary.get('failed', 0)}{errors_text}, Total: {summary['total']}"
 
 
 def main():

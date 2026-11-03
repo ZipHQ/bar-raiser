@@ -5,7 +5,12 @@ from json import dumps
 from pathlib import Path
 from unittest.mock import patch
 
-from bar_raiser.checks.annotate_pytest import PytestReportJson, get_annotations, main
+from bar_raiser.checks.annotate_pytest import (
+    PytestReportJson,
+    get_annotations,
+    get_summary,
+    main,
+)
 
 REPO_DIR = "/home/user/bar_raiser"
 WORKING_DIR = "/home/user/bar_raiser/subfolder"
@@ -52,6 +57,46 @@ def test_get_annotations() -> None:
     annotations = get_annotations(pytest_report_json, Path(REPO_DIR))
     assert len(annotations) == 1
     assert annotations[0]["path"] == "subfolder/github/test_utils.py"
+    # pytest-json-report's lineno 8 is the 0-based line of `def test_get_repo`.
+    assert annotations[0]["start_line"] == 9
+    assert annotations[0]["end_line"] == 9
+
+
+setup_error_report_json: PytestReportJson = {
+    "root": WORKING_DIR,
+    "summary": {"passed": 1, "failed": 0, "error": 1, "total": 2},
+    "tests": [
+        {
+            "nodeid": "test_sample.py::test_setup_error",
+            "lineno": 12,
+            "outcome": "error",
+            "setup": {"longrepr": "RuntimeError: fixture setup failed"},
+            "teardown": {},
+        },
+        {
+            "nodeid": "test_sample.py::test_passes",
+            "lineno": 16,
+            "outcome": "passed",
+            "call": {},
+        },
+    ],
+}
+
+
+def test_get_annotations_includes_setup_errors() -> None:
+    annotations = get_annotations(setup_error_report_json, Path(REPO_DIR))
+    assert len(annotations) == 1
+    assert annotations[0]["path"] == "subfolder/test_sample.py"
+    assert annotations[0]["start_line"] == 13
+    assert annotations[0]["message"] == "RuntimeError: fixture setup failed"
+
+
+def test_get_summary() -> None:
+    assert get_summary(pytest_report_json) == "Passed: 12, Failed: 1, Total: 13"
+    assert (
+        get_summary(setup_error_report_json)
+        == "Passed: 1, Failed: 0, Errors: 1, Total: 2"
+    )
 
 
 def test_main() -> None:
