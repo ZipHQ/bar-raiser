@@ -62,6 +62,15 @@ The following checks are available and can be configured in a CI workflow e.g. [
 
 ### Dependencies
 
+The AWS-backed tech debt analyzer runner requires the `tech-debt` extra:
+
+```sh
+pip install 'bar-raiser[tech-debt]'
+```
+
+GitHub checks and Slack helpers work with the base installation. Developers
+working on the analyzer runner can use `pdm install -G tech-debt`.
+
 The project uses the following dependencies:
 
 - [PyGithub](https://github.com/PyGithub/PyGithub) (MIT License): A Python library to access the GitHub API v3.
