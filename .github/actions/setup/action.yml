@@ -6,5 +6,5 @@ runs:
     - uses: pdm-project/setup-pdm@v4
       with:
         cache: true
-    - run: pdm install
+    - run: pdm install -G tech-debt
       shell: bash
