@@ -49,8 +49,10 @@ CHECK_ERROR_PATTERN = CheckPattern(
 CANNOT_PARSE_PATTERN = CheckPattern(
     regex="^error: Failed to parse (?P<path>[^:]+):(?P<line>[0-9]+):[0-9]+: (?P<message>.*)$"
 )
+# Summary line for safe fixes: "fixable with the `--fix` option." before Ruff 0.17 and
+# "fixable with `--fix`." from 0.17, each optionally followed by a note on unsafe fixes.
 FIXABLE_PATTERN = CheckPattern(
-    regex="^.* fixable with the `--fix` option.$",
+    regex=r"^.* fixable with (?:the )?`--fix`(?: option)?(?: \(.*\))?\.$",
     should_create_annotation=False,
     is_autofixable=True,
 )

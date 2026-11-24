@@ -5,6 +5,8 @@ from pathlib import Path
 from subprocess import CalledProcessError
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from bar_raiser.checks.annotate_ruff import (
     RUFF_CHECK_PATTERNS,
     RUFF_FORMAT_PATTERNS,
@@ -108,6 +110,46 @@ def test_get_annotations_and_actions_for_ruff_check() -> None:
                 "identifier": "autofix-ruff",
             },
         )
+
+
+@pytest.mark.parametrize(
+    ("summary", "has_autofix"),
+    [
+        pytest.param("[*] 1 fixable with the `--fix` option.", True, id="ruff<0.17"),
+        pytest.param(
+            "[*] 3 fixable with the `--fix` option (2 hidden fixes can be enabled with the `--unsafe-fixes` option).",
+            True,
+            id="ruff<0.17-with-hidden-fixes",
+        ),
+        pytest.param(
+            "No fixes available (2 hidden fixes can be enabled with the `--unsafe-fixes` option).",
+            False,
+            id="ruff<0.17-unsafe-only",
+        ),
+        pytest.param("[*] 1 fixable with `--fix`.", True, id="ruff>=0.17"),
+        pytest.param(
+            "[*] 29 fixable with `--fix` (381 unsafe fixes available with `--fix --unsafe-fixes`).",
+            True,
+            id="ruff>=0.17-with-unsafe-fixes",
+        ),
+        pytest.param(
+            "1 unsafe fix available with `--fix --unsafe-fixes`.",
+            False,
+            id="ruff>=0.17-unsafe-only",
+        ),
+        pytest.param("All checks passed!", False, id="clean"),
+    ],
+)
+def test_ruff_check_summary_offers_autofix_only_for_safe_fixes(
+    summary: str, has_autofix: bool
+) -> None:
+    _, action = get_annotations_and_actions(
+        Path(REPO_DIR),
+        f"Found 1 error.\n{summary}\n",
+        RUFF_CHECK_PATTERNS,
+        Autofixes.RUFF,
+    )
+    assert (action is not None) is has_autofix
 
 
 def test_main() -> None:
